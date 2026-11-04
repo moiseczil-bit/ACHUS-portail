@@ -144,6 +144,11 @@ DO $$ DECLARE p uuid; BEGIN
 END $$;
 RESET ROLE;
 
+-- Publications conservées après suppression malgré les anciennes FK.
+INSERT INTO public.annonces(titre,contenu,auteur_id) VALUES ('Archive suppression','Conserver ce texte',current_setting('test.paul')::uuid);
+INSERT INTO public.photos(url,uploade_par) VALUES ('test-archive',current_setting('test.paul')::uuid);
+INSERT INTO public.votes(titre,cree_par) VALUES ('Archive suppression',current_setting('test.paul')::uuid);
+INSERT INTO public.presence(membre_id,activite,valide_par) VALUES (current_setting('test.anne')::uuid,'Archive suppression',current_setting('test.paul')::uuid);
 -- Retrait motivé, suppression présidentielle et numéro durable.
 SELECT set_config('request.jwt.claim.sub','22222222-2222-4222-8222-222222222222',false);
 SET ROLE authenticated;
@@ -174,6 +179,12 @@ DO $$ BEGIN
 END $$;
 RESET ROLE;
 
+DO $$ BEGIN
+  ASSERT EXISTS (SELECT 1 FROM public.annonces WHERE titre = 'Archive suppression' AND auteur_id IS NULL), 'Annonce perdue';
+  ASSERT EXISTS (SELECT 1 FROM public.photos WHERE url = 'test-archive' AND uploade_par IS NULL), 'Photo perdue';
+  ASSERT EXISTS (SELECT 1 FROM public.votes WHERE titre = 'Archive suppression' AND cree_par IS NULL), 'Vote perdu';
+  ASSERT EXISTS (SELECT 1 FROM public.presence WHERE activite = 'Archive suppression' AND valide_par IS NULL), 'Ancienne validation perdue';
+END $$;
 -- Même après un recul artificiel de la séquence, 002 reste réservé.
 SELECT setval('public.numero_membre_seq',1,true);
 SELECT set_config('test.nouveau_numero',(SELECT numero_membre FROM public.approuver_membre((SELECT id FROM public.membres WHERE user_id = '33333333-3333-4333-8333-333333333333'))),false);

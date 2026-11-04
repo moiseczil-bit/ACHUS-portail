@@ -30,7 +30,8 @@ const aujourd = jourHaiti();
 const hier = decalerJour(aujourd, -1);
 for (const file of ['supabase/tests/00_schema_snapshot.sql', 'supabase/tests/01_seed.sql',
   'supabase/migrations/20261104120000_portail_refonte.sql',
-  'supabase/migrations/20261104124515_messagerie_presences_registre.sql']) await db.exec(await readFile(resolve(root, file), 'utf8'));
+  'supabase/migrations/20261104124515_messagerie_presences_registre.sql',
+  'supabase/migrations/20261104135930_correction_suppression_dependances.sql']) await db.exec(await readFile(resolve(root, file), 'utf8'));
 await db.query('INSERT INTO auth.users(id,email,raw_user_meta_data) VALUES ($1,$2,$3),($4,$5,$6)',
   [PAUL, 'paul@example.ht', { prenom: 'Paul', nom: 'Joseph' }, ANNE, 'anne@example.ht', { prenom: 'Anne', nom: 'Louis' }]);
 await db.query("SELECT set_config('request.jwt.claim.sub',$1,false)", [PRESIDENT]);

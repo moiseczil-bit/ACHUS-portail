@@ -17,8 +17,12 @@ try {
   const nouvelle = 'supabase/migrations/' + migrations[0];
   await run(nouvelle);
   await run(nouvelle);
+  const correction = 'supabase/migrations/20261104135930_correction_suppression_dependances.sql';
+  await run(correction);
+  await run(correction);
   await run('supabase/tests/03_collaboration.sql');
   await run(nouvelle);
+  await run(correction);
   await run('supabase/tests/04_conservation.sql');
   console.log('MIGRATION_OK (Postgres embarqué, RLS et conservation vérifiées)');
 } catch (error) {

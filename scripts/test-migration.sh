@@ -33,11 +33,14 @@ for migration in "$ROOT"/supabase/migrations/*_messagerie_presences_registre.sql
   "${PSQL[@]}" -d "$DB" -f "$migration"
   "${PSQL[@]}" -d "$DB" -f "$migration"
 done
+"${PSQL[@]}" -d "$DB" -f "$ROOT/supabase/migrations/20261104135930_correction_suppression_dependances.sql"
+"${PSQL[@]}" -d "$DB" -f "$ROOT/supabase/migrations/20261104135930_correction_suppression_dependances.sql"
 "${PSQL[@]}" -d "$DB" -f "$ROOT/supabase/tests/03_collaboration.sql"
 # Réexécuter après utilisation, puis vérifier la conservation des données.
 for migration in "$ROOT"/supabase/migrations/*_messagerie_presences_registre.sql; do
   "${PSQL[@]}" -d "$DB" -f "$migration"
 done
+"${PSQL[@]}" -d "$DB" -f "$ROOT/supabase/migrations/20261104135930_correction_suppression_dependances.sql"
 "${PSQL[@]}" -d "$DB" -f "$ROOT/supabase/tests/04_conservation.sql"
 
 echo "MIGRATION_OK"
