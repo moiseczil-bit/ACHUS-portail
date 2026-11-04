@@ -65,6 +65,8 @@ N'ajoutez jamais la clé `service_role` dans le site. Elle ne doit pas quitter S
 
 ### 2. Netlify
 
+Le portail est publié sur le site Netlify `luxury-snickerdoodle-b2bd70` (domaine portail.achussantohaiti.com) par déploiement manuel. Pour l'auto-déploiement, lier ce site au dépôt dans Netlify.
+
 Le dépôt contient `netlify.toml`. Il n'y a **pas** de commande de build. Le dossier publié est la racine. L'adresse `/` affiche `index-portail.html`.
 
 Si le site est déjà relié à GitHub : fusionnez la demande, Netlify publie tout seul.
