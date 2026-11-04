@@ -84,7 +84,8 @@ export function createClient() {
   return { from: table=>new Requete(table), rpc:(name,params={})=>new Requete(null,name,params),
     storage:{from:bucket=>({createSignedUrl:path=>storageRequest('sign',bucket,path),upload:(path,file)=>storageRequest('upload',bucket,path,file),remove:paths=>storageRequest('remove',bucket,paths[0])})},
     auth:{getSession:async()=>({data:{session:{user}}}),signOut:async()=>({error:null})} };
-}`;
+}
+window.supabase={createClient};`;
 const tables = new Set(['membres', 'messages', 'presences_evenements', 'presences', 'evenements', 'annonces', 'historique_statuts', 'journal_admin', 'publications', 'commentaires', 'liens_familiaux', 'appels', 'reunions']);
 const fonctions = new Set(['contacts_messagerie', 'sessions_presence', 'statistiques_presences', 'decider_presence', 'retirer_membre', 'supprimer_membre', 'changer_statut', 'noms_contributions', 'masquer_contribution', 'gerer_lien_familial', 'enfants_parent', 'presences_enfant', 'inviter_appel', 'repondre_appel', 'creer_reunion', 'annuler_reunion', 'modifier_mon_grade', 'profils_contributions']);
 const ident = value => { if (!/^[a-z_]+$/.test(value)) throw new Error('Identifiant invalide'); return '"' + value + '"'; };
@@ -157,7 +158,7 @@ const server = createServer(async (req, res) => {
       } catch(e){resultat={data:null,error:{message:e.message,code:e.code}};}
       res.setHeader('Content-Type','application/json');res.end(JSON.stringify(resultat));return;
     }
-    if (req.url === '/__test__/sdk.js') { res.setHeader('Content-Type', 'text/javascript'); res.end(sdk); return; }
+    if (req.url === '/__test__/sdk.js' || req.url === '/__test__/sdk-vendor.js') { res.setHeader('Content-Type', 'text/javascript'); res.end(sdk); return; }
     if (req.url === '/__test__/query' && req.method === 'POST') {
       let body = ''; for await (const chunk of req) body += chunk;
       const uid = req.headers['x-test-user'];
@@ -170,7 +171,7 @@ const server = createServer(async (req, res) => {
     const path = resolve(root, '.' + (req.url === '/' ? '/index-portail.html' : req.url.split('?')[0]));
     if (!path.startsWith(root + '/')) { res.writeHead(403).end(); return; }
     res.setHeader('Content-Type', { '.js': 'text/javascript', '.css': 'text/css', '.html': 'text/html', '.png': 'image/png', '.woff2': 'font/woff2' }[extname(path)] || 'text/plain');
-    res.end(await readFile(path));
+    res.end(req.url.split('?')[0] === '/js/vendor/supabase-2.49.4.js' ? sdk : await readFile(path));
   } catch { res.writeHead(404).end(); }
 });
 await new Promise(ok => server.listen(0, '127.0.0.1', ok));
@@ -198,6 +199,50 @@ try {
   async function nav(page, id) { await page.locator(`[data-page="${id}"]`).click(); await page.locator('#contenu[aria-busy="false"]').waitFor({ state: 'attached' }); }
   async function sansDebordement(page) { assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true, 'Débordement horizontal de la page'); }
 
+  console.log('→ connexion avec le véritable SDK local, démarrage lent, erreur, succès et session restaurée');
+  const reel=await browser.newContext({viewport:{width:390,height:844},locale:'fr-HT'});
+  const connexion=await reel.newPage();
+  connexion.on('pageerror',e=>erreurs.push(e.message));
+  let debloquerSdk;const sdkAttente=new Promise(ok=>debloquerSdk=ok);
+  const vendorReel=await readFile(resolve(root,'js/vendor/supabase-2.49.4.js'),'utf8');
+  await connexion.route('**/js/vendor/supabase-2.49.4.js',async route=>{await sdkAttente;await route.fulfill({contentType:'text/javascript',body:vendorReel});});
+  let modeConnexion='erreur';
+  const membreReel=(await requeteLocale({table:'membres',action:'select',columns:'*',filters:[['user_id','=',PAUL]],orders:[],options:{}},PAUL)).data;
+  const encoder=v=>Buffer.from(JSON.stringify(v)).toString('base64url');
+  const tokenFictif=encoder({alg:'HS256',typ:'JWT'})+'.'+encoder({sub:PAUL,exp:Math.floor(Date.now()/1000)+3600,iat:Math.floor(Date.now()/1000),aud:'authenticated',role:'authenticated'})+'.signature-locale-de-test';
+  const utilisateurFictif={id:PAUL,email:'paul@example.ht',aud:'authenticated',role:'authenticated',app_metadata:{provider:'email',providers:['email']},user_metadata:{},created_at:new Date().toISOString()};
+  await connexion.route('https://**/*',async route=>{
+    const u=new URL(route.request().url());
+    if(u.hostname!=='hyktpddailftuwmbakdm.supabase.co')return route.abort();
+    const headers={'access-control-allow-origin':'*','access-control-allow-headers':'*','access-control-allow-methods':'GET,POST,HEAD,OPTIONS'};
+    if(route.request().method()==='OPTIONS')return route.fulfill({status:204,headers});
+    let status=200;let data=[];
+    if(u.pathname==='/auth/v1/token') {
+      if(modeConnexion==='erreur'){status=400;data={code:'invalid_credentials',msg:'Invalid login credentials'};}
+      else data={access_token:tokenFictif,refresh_token:'jeton-fictif-local',token_type:'bearer',expires_in:3600,user:utilisateurFictif};
+    } else if(u.pathname==='/auth/v1/user')data=utilisateurFictif;
+    else if(u.pathname==='/rest/v1/membres')data=membreReel;
+    else if(u.pathname.startsWith('/storage/')){status=404;data={message:'Photo absente'};}
+    if(route.request().method()==='HEAD')headers['content-range']='*/0';
+    return route.fulfill({status,headers,contentType:'application/json',body:route.request().method()==='HEAD'?'':JSON.stringify(data)});
+  });
+  await connexion.goto(url, { waitUntil: 'domcontentloaded' });
+  await connexion.locator('#login-email').fill('paul@example.ht');
+  await connexion.locator('#login-password').fill('mot-de-passe-fictif-local');
+  await connexion.getByRole('button',{name:'Se connecter',exact:true}).click();
+  await connexion.getByText('Connexion…',{exact:true}).waitFor();
+  assert.equal(await connexion.getByRole('button',{name:'Connexion en cours…',exact:true}).isDisabled(),true);
+  debloquerSdk();
+  await connexion.getByText('E-mail ou mot de passe incorrect.',{exact:true}).waitFor();
+  assert.equal(await connexion.getByRole('button',{name:'Se connecter',exact:true}).isEnabled(),true);
+  modeConnexion='succes';
+  await connexion.getByRole('button',{name:'Se connecter',exact:true}).click();
+  await connexion.locator('#ecran-app:not([hidden])').waitFor();
+  await connexion.getByRole('heading',{name:'Paul Joseph',exact:true}).waitFor();
+  await connexion.reload();
+  await connexion.locator('#ecran-app:not([hidden])').waitFor();
+  await connexion.getByRole('heading',{name:'Paul Joseph',exact:true}).waitFor();
+  await reel.close();
   // Test de visibilité des mots de passe sur la vraie page publique, avant toute connexion.
   const authContext = await browser.newContext({ viewport:{width:390,height:844} });
   const authPage = await authContext.newPage();

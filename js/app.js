@@ -25,6 +25,7 @@ const ROLES = [
 ];
 
 let supabase = null;
+let chargementClient = null;
 let session = null;
 let profil = null;
 let page = "accueil";
@@ -53,6 +54,37 @@ function texteErreur(e) {
   if (!e) return "Erreur inconnue.";
   if (typeof e === "string") return e;
   return e.message || e.error_description || e.details || "Erreur inconnue.";
+}
+
+// Le SDK est servi avec le portail : la connexion ne dépend plus d'un CDN tiers.
+function attenteLimitee(promesse, delai, message) {
+  let timer;
+  return Promise.race([promesse, new Promise((_, refuser) => {
+    timer = setTimeout(() => refuser(new Error(message)), delai);
+  })]).finally(() => clearTimeout(timer));
+}
+async function requeteBornee(url, options = {}) {
+  const controle = new AbortController();
+  const annuler = () => controle.abort();
+  const signal = options.signal;
+  if (signal?.aborted) annuler();
+  else signal?.addEventListener('abort', annuler, { once: true });
+  const timer = setTimeout(annuler, 20000);
+  try { return await fetch(url, { ...options, signal: controle.signal }); }
+  finally { clearTimeout(timer); signal?.removeEventListener('abort', annuler); }
+}
+async function obtenirClient() {
+  if (supabase) return supabase;
+  if (!chargementClient) {
+    chargementClient = import('./vendor/supabase-2.49.4.js').then(() => {
+      supabase = window.supabase.createClient(SUPA_URL, SUPA_KEY, {
+        auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true },
+        global: { fetch: requeteBornee }
+      });
+      return supabase;
+    }).catch(e => { chargementClient = null; throw e; });
+  }
+  return attenteLimitee(chargementClient, 20000, 'Le service de connexion ne se charge pas. Rechargez la page pour réessayer.');
 }
 
 let toastTimer = null;
@@ -780,6 +812,7 @@ async function sortir() {
 
 function traduireAuth(message) {
   const m = message || "";
+  if (/fetch|network|abort|timeout|timed out/i.test(m)) return "Connexion au serveur interrompue. Vérifiez votre accès Internet puis réessayez.";
   if (/invalid login/i.test(m)) return "E-mail ou mot de passe incorrect.";
   if (/already registered/i.test(m)) return "Un compte existe déjà avec cet e-mail. Connectez-vous.";
   if (/password/i.test(m) && /6|least/i.test(m)) return "Le mot de passe doit contenir au moins 6 caractères.";
@@ -802,21 +835,24 @@ function lierAuth() {
   };
   $("form-login").onsubmit = async (e) => {
     e.preventDefault();
+    const bouton = $("form-login").querySelector('button[type="submit"]');
+    if (bouton.disabled) return;
+    bouton.disabled = true; bouton.textContent = "Connexion en cours…";
     msg("login-msg", "Connexion…", "info");
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email: $("login-email").value.trim(),
-      password: $("login-password").value
-    });
-    if (error) {
-      msg("login-msg", traduireAuth(texteErreur(error)), "err");
-      return;
-    }
-    session = data.session;
-    msg("login-msg", "", "info");
     try {
+      const client = await obtenirClient();
+      const { data, error } = await attenteLimitee(client.auth.signInWithPassword({
+        email: $("login-email").value.trim(), password: $("login-password").value
+      }), 30000, "La connexion prend trop de temps. Rechargez la page pour réessayer.");
+      if (error) throw error;
+      if (!data?.session) throw new Error("La connexion n’a pas créé de session. Réessayez.");
+      session = data.session;
       await entrer();
+      msg("login-msg", "", "info");
     } catch (err) {
-      msg("login-msg", texteErreur(err), "err");
+      msg("login-msg", traduireAuth(texteErreur(err)), "err");
+    } finally {
+      bouton.disabled = false; bouton.textContent = "Se connecter";
     }
   };
   $("form-adhesion").onsubmit = async (e) => {
@@ -838,7 +874,10 @@ function lierAuth() {
       return;
     }
     msg("reg-msg", "Envoi de la demande…", "info");
-    const { data, error } = await supabase.auth.signUp({
+    let client;
+    try { client = await obtenirClient(); }
+    catch(e) { msg("reg-msg", traduireAuth(texteErreur(e)), "err"); return; }
+    const { data, error } = await client.auth.signUp({
       email,
       password,
       options: {
@@ -928,23 +967,17 @@ async function demarrer() {
   });
   lierAuth();
   if (location.hash === "#adhesion") montrerAdhesion();
-  const { createClient } = await import("https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.4/+esm");
-  supabase = createClient(SUPA_URL, SUPA_KEY, {
-    auth: {
-      persistSession: true,
-      autoRefreshToken: true,
-      detectSessionInUrl: true
-    }
-  });
-  const { data, error } = await supabase.auth.getSession();
+  const client = await obtenirClient();
+  const { data, error } = await attenteLimitee(client.auth.getSession(), 25000,
+    "Votre session précédente ne répond pas. Rechargez la page ou réessayez la connexion.");
   if (error) {
-    msg("login-msg", texteErreur(error), "err");
+    msg("login-msg", traduireAuth(texteErreur(error)), "err");
     return;
   }
   if (data.session) {
     session = data.session;
     try { await entrer(); }
-    catch (err) { msg("login-msg", texteErreur(err), "err"); }
+    catch (err) { msg("login-msg", traduireAuth(texteErreur(err)), "err"); }
   }
 }
 
@@ -953,6 +986,7 @@ demarrer().catch((e) => {
   if (t) {
     t.hidden = false;
     t.className = "toast err";
-    t.textContent = texteErreur(e);
+    t.textContent = traduireAuth(texteErreur(e));
+    msg("login-msg", traduireAuth(texteErreur(e)), "err");
   }
 });
