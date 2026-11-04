@@ -11,6 +11,8 @@
 
 BEGIN;
 
+ALTER TABLE public.membres DROP CONSTRAINT IF EXISTS membres_id_fkey;
+
 -- ---------------------------------------------------------------------------
 -- Schéma privé : numérotation (non exposée à l’API REST)
 -- ---------------------------------------------------------------------------
@@ -803,8 +805,6 @@ BEGIN
   INSERT INTO storage.buckets (id, name, public)
   VALUES ('photos-membres', 'photos-membres', false)
   ON CONFLICT (id) DO UPDATE SET public = false, name = EXCLUDED.name;
-
-  EXECUTE 'ALTER TABLE storage.objects ENABLE ROW LEVEL SECURITY';
 
   EXECUTE 'DROP POLICY IF EXISTS photos_membres_select ON storage.objects';
   EXECUTE 'DROP POLICY IF EXISTS photos_membres_insert ON storage.objects';
