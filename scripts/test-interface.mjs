@@ -6,6 +6,7 @@ import { readFile, mkdir } from 'node:fs/promises';
 import { resolve, extname } from 'node:path';
 import { chromium } from 'playwright';
 import { PGlite } from '@electric-sql/pglite';
+import { lienSalle } from '../js/communaute.js';
 import { csvTexte, filtrerMembres, jourHaiti, decalerJour } from '../js/collaboration.js';
 
 assert.match(csvTexte(['Nom'], [['=2+2'], ['  @somme'], ['Émilie;"test"']]), /"'=2\+2"/);
@@ -19,29 +20,35 @@ const testMembres = [
 assert.equal(filtrerMembres(testMembres, { recherche: 'emilie', statut: 'actif' }).length, 1);
 assert.equal(filtrerMembres(testMembres, { tri: 'numero_membre' })[0].numero_membre, 'ACHUS-002');
 
+assert.throws(() => lienSalle('javascript:alert(1)'));
+assert.match(lienSalle('10000000-0000-4000-8000-000000000001', true), /^https:\/\/meet\.jit\.si\/ACHUS-/);
 const root = resolve(new URL('..', import.meta.url).pathname);
 const db = new PGlite({ parsers: { 1082: value => value } });
 const PRESIDENT = '11111111-1111-4111-8111-111111111111';
 const BUREAU = '22222222-2222-4222-8222-222222222222';
 const PAUL = '99999999-9999-4999-8999-999999999999';
 const ANNE = '88888888-8888-4888-8888-888888888888';
+const PARENT = '60000000-0000-4000-8000-000000000001';
 const EVENEMENT = '10000000-0000-4000-8000-000000000001';
 const aujourd = jourHaiti();
 const hier = decalerJour(aujourd, -1);
 for (const file of ['supabase/tests/00_schema_snapshot.sql', 'supabase/tests/01_seed.sql',
   'supabase/migrations/20261104120000_portail_refonte.sql',
   'supabase/migrations/20261104124515_messagerie_presences_registre.sql',
-  'supabase/migrations/20261104135930_correction_suppression_dependances.sql']) await db.exec(await readFile(resolve(root, file), 'utf8'));
+  'supabase/migrations/20261104135930_correction_suppression_dependances.sql',
+  'supabase/migrations/20261104143144_reseau_social_gratuit.sql']) await db.exec(await readFile(resolve(root, file), 'utf8'));
 await db.query('INSERT INTO auth.users(id,email,raw_user_meta_data) VALUES ($1,$2,$3),($4,$5,$6)',
   [PAUL, 'paul@example.ht', { prenom: 'Paul', nom: 'Joseph' }, ANNE, 'anne@example.ht', { prenom: 'Anne', nom: 'Louis' }]);
 await db.query("SELECT set_config('request.jwt.claim.sub',$1,false)", [PRESIDENT]);
-for (const uid of [PAUL, ANNE, BUREAU]) await db.query('SELECT public.approuver_membre((SELECT id FROM public.membres WHERE user_id = $1))', [uid]);
+await db.query('INSERT INTO auth.users(id,email,raw_user_meta_data) VALUES ($1,$2,$3)', [PARENT, 'parent@example.ht', { prenom: 'Marie', nom: 'Parent', type_compte: 'parent' }]);
+for (const uid of [PAUL, ANNE, BUREAU, PARENT]) await db.query('SELECT public.approuver_membre((SELECT id FROM public.membres WHERE user_id = $1))', [uid]);
 await db.query("UPDATE public.membres SET role = 'bureau' WHERE user_id = $1", [BUREAU]);
 await db.query('UPDATE public.membres SET date_adhesion = $1 WHERE numero_membre IS NOT NULL', [decalerJour(aujourd, -100)]);
 await db.query('INSERT INTO public.evenements(id,titre,date_debut) VALUES ($1,$2,($3::date + TIME \'09:00\') AT TIME ZONE \'America/Port-au-Prince\')', [EVENEMENT, 'Réunion de contrôle', hier]);
 await db.query("INSERT INTO public.evenements(titre,date_debut,recurrence) VALUES ('Réunion du samedi',($1::date + TIME '09:00') AT TIME ZONE 'America/Port-au-Prince','hebdomadaire:samedi:09:00')", [decalerJour(aujourd, -28)]);
 const membreId = async uid => (await db.query('SELECT id FROM public.membres WHERE user_id = $1', [uid])).rows[0].id;
 const paulId = await membreId(PAUL); const anneId = await membreId(ANNE); const presidentId = await membreId(PRESIDENT);
+const parentId = await membreId(PARENT);
 const paulNumero = (await db.query('SELECT numero_membre FROM public.membres WHERE id = $1', [paulId])).rows[0].numero_membre;
 await db.query('INSERT INTO public.messages(expediteur,destinataire,contenu) VALUES ($1,$2,$3),($1,$4,$5)',
   [anneId, paulId, 'Bonjour Paul <script>window.injection = true</script>', presidentId, 'Bonjour Président']);
@@ -71,8 +78,8 @@ export function createClient() {
   return { from: table=>new Requete(table), rpc:(name,params={})=>new Requete(null,name,params),
     auth:{getSession:async()=>({data:{session:{user}}}),signOut:async()=>({error:null})} };
 }`;
-const tables = new Set(['membres', 'messages', 'presences_evenements', 'presences', 'evenements', 'annonces', 'historique_statuts', 'journal_admin']);
-const fonctions = new Set(['contacts_messagerie', 'sessions_presence', 'statistiques_presences', 'decider_presence', 'retirer_membre', 'supprimer_membre', 'changer_statut']);
+const tables = new Set(['membres', 'messages', 'presences_evenements', 'presences', 'evenements', 'annonces', 'historique_statuts', 'journal_admin', 'publications', 'commentaires', 'liens_familiaux', 'appels', 'reunions']);
+const fonctions = new Set(['contacts_messagerie', 'sessions_presence', 'statistiques_presences', 'decider_presence', 'retirer_membre', 'supprimer_membre', 'changer_statut', 'noms_contributions', 'masquer_contribution', 'gerer_lien_familial', 'enfants_parent', 'presences_enfant', 'inviter_appel', 'repondre_appel', 'creer_reunion', 'annuler_reunion']);
 const ident = value => { if (!/^[a-z_]+$/.test(value)) throw new Error('Identifiant invalide'); return '"' + value + '"'; };
 async function requeteLocale(q, uid) {
   return db.transaction(async tx => {
@@ -114,7 +121,7 @@ const server = createServer(async (req, res) => {
     if (req.url === '/__test__/query' && req.method === 'POST') {
       let body = ''; for await (const chunk of req) body += chunk;
       const uid = req.headers['x-test-user'];
-      assert.ok([PAUL, ANNE, PRESIDENT, BUREAU].includes(uid));
+      assert.ok([PAUL, ANNE, PRESIDENT, BUREAU, PARENT].includes(uid));
       let data;
       try { data = await requeteLocale(JSON.parse(body), uid); }
       catch (e) { data = { data: null, error: { code: e.code, message: e.message } }; }
@@ -179,6 +186,65 @@ try {
 
   const admin = await pagePour(PRESIDENT);
   console.log('→ président : validation, registre et export complet');
+  console.log('→ communauté, appels, réunions et accès parent');
+  await nav(membre, 'fil');
+  await membre.getByLabel('Votre publication', { exact: true }).fill('Bonjour ACHUS <img src=x onerror="window.injection=true">');
+  await membre.getByRole('button', { name: 'Publier', exact: true }).click();
+  await membre.getByText('Bonjour ACHUS <img src=x onerror="window.injection=true">', { exact: true }).waitFor();
+  assert.equal(await membre.evaluate(() => window.injection), undefined);
+  await membre.getByLabel('Votre commentaire', { exact: true }).fill('Prêt pour notre réunion.');
+  await membre.getByRole('button', { name: 'Commenter', exact: true }).click();
+  await membre.getByRole('button', { name: 'Voir les commentaires', exact: true }).click();
+  await membre.getByText('Prêt pour notre réunion.', { exact: true }).waitFor();
+  await sansDebordement(membre);
+  await mkdir(resolve(root, 'test-results'), { recursive: true });
+  await membre.evaluate(() => window.scrollTo(0,0));
+  await membre.screenshot({ path: resolve(root, 'test-results/communaute-mobile.png'), fullPage: true });
+  await nav(membre, 'appels');
+  await membre.getByLabel('Destinataire', { exact: true }).selectOption(anneId);
+  await membre.getByLabel('Type d’appel', { exact: true }).selectOption('audio');
+  await membre.getByRole('button', { name: 'Envoyer l’invitation', exact: true }).click();
+  await membre.getByRole('button', { name: 'Annuler l’invitation', exact: true }).waitFor();
+  const anne = await pagePour(ANNE, 1280);
+  await nav(anne, 'appels');
+  await anne.getByRole('button', { name: 'Accepter', exact: true }).click();
+  const salle = anne.getByRole('link', { name: 'Rejoindre sur Jitsi', exact: true });
+  await salle.waitFor(); assert.match(await salle.getAttribute('href'), /startWithVideoMuted=true/);
+  assert.equal(await salle.getAttribute('rel'), 'noopener noreferrer');
+  await anne.getByRole('button', { name: 'Terminer', exact: true }).click();
+  await anne.getByText(/Audio.*Terminé/).waitFor();
+  await sansDebordement(anne);
+  await nav(admin, 'reunions');
+  await admin.getByLabel('Titre', { exact: true }).fill('Grande réunion ACHUS');
+  const local = d => new Date(d).toISOString().slice(0,16);
+  await admin.getByLabel('Début (heure de cet appareil)', { exact: true }).fill(local(Date.now()+3600000));
+  await admin.getByLabel('Fin (heure de cet appareil, 12 h maximum)', { exact: true }).fill(local(Date.now()+7200000));
+  await admin.getByRole('button', { name: 'Créer la réunion', exact: true }).click();
+  await admin.getByRole('heading', { name: 'Grande réunion ACHUS', exact: true }).waitFor();
+  await sansDebordement(admin);
+  await admin.evaluate(() => window.scrollTo(0,0));
+  await admin.screenshot({ path: resolve(root, 'test-results/reunions-mobile.png'), fullPage: true });
+  await nav(admin, 'famille');
+  await admin.getByLabel('Parent actif', { exact: true }).selectOption(parentId);
+  await admin.getByLabel('Enfant / membre', { exact: true }).selectOption(paulId);
+  await admin.getByRole('button', { name: 'Valider le lien familial', exact: true }).click();
+  await admin.getByRole('button', { name: 'Retirer l’accès du parent', exact: true }).waitFor();
+  const parent = await pagePour(PARENT);
+  await nav(parent, 'famille');
+  await parent.getByRole('heading', { name: 'Paul Joseph', exact: true }).waitFor();
+  await parent.getByText(/Réunion de contrôle.*En attente/).waitFor();
+  await sansDebordement(parent);
+  await parent.evaluate(() => window.scrollTo(0,0));
+  await parent.screenshot({ path: resolve(root, 'test-results/parents-mobile.png'), fullPage: true });
+  await nav(parent, 'messages');
+  await parent.getByRole('button', { name: 'Nouveau message', exact: true }).click();
+  assert.equal(await parent.getByLabel('Destinataire', { exact: true }).locator(`option[value="${anneId}"]`).count(), 0);
+  await parent.keyboard.press('Escape');
+  admin.once('dialog', d => d.accept());
+  await admin.getByRole('button', { name: 'Retirer l’accès du parent', exact: true }).click();
+  await admin.getByRole('button', { name: 'Retirer l’accès du parent', exact: true }).waitFor({state:'detached'});
+  await nav(parent, 'famille');
+  await parent.getByText(/Aucun enfant n’est rattaché/).waitFor();
   await nav(admin, 'presences-admin');
   await admin.getByLabel('Séance', { exact: true }).selectOption(EVENEMENT + '/' + hier);
   await admin.getByRole('button', { name: 'Approuver la présence de Paul Joseph', exact: true }).click();
@@ -244,7 +310,7 @@ try {
   await nav(admin, 'registre');
   await admin.screenshot({ path: resolve(root, 'test-results/registre-mobile.png'), fullPage: true });
   assert.deepEqual(erreurs, []);
-  console.log('INTERFACE_OK : messages, non-lus, déclaration, validation, CSV, retrait, double confirmation, journal, mobile et bureau.');
+  console.log('INTERFACE_OK : messages, présences, CSV, retrait, suppression, communauté, appels, réunions, parents, révocation et mobile.');
 } catch (error) {
   await mkdir(resolve(root, 'test-results'), { recursive: true });
   if (browser) {
