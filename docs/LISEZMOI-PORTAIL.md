@@ -5,6 +5,8 @@ Slogan : « Lajenès se lavni peyi an ».
 
 Ce document est pour la personne qui gère le site, pas pour un développeur.
 
+**Extension messagerie / présences / registre (4 novembre 2026)** : le code et les migrations sont proposés dans une branche séparée. La nouvelle migration ne doit être appliquée en production qu’après accord du propriétaire. Les tests utilisent une base jetable, jamais le projet Supabase en service.
+
 ## Ce qui a été fait
 
 - Les demandes d'adhésion sont vraiment enregistrées. Avant, le site disait « candidature envoyée » même quand la base refusait la fiche (il manquait le numéro automatique, le prénom, et l'erreur était cachée).
@@ -18,14 +20,21 @@ Ce document est pour la personne qui gère le site, pas pour un développeur.
 - Les contacts sont affichés : WhatsApp +509 39 18 0332, achushaiti@gmail.com.
 - Les données des membres ne sont plus lisibles par n'importe qui sur Internet. Chacun ne voit que sa fiche. Le bureau voit l'ensemble. La clé visible dans le site ne permet plus de se nommer admin.
 - Un petit appel automatique, deux fois par semaine, évite que Supabase mette le projet en pause.
+- **Messagerie** : réception, messages envoyés, réponse, pagination et badge de non-lus. Seuls les membres au statut **Actif** y accèdent. Même le bureau ne lit que ses propres échanges. Le destinataire peut marquer un message comme lu ; le contenu, l’auteur et la date ne sont pas modifiables. L’annuaire ne donne que le nom et le numéro des membres actifs ayant un compte. Les annonces du bureau sont maintenant lisibles depuis le menu des membres actifs et honoraires.
+- **Présences** : les membres actifs ou honoraires déclarent une séance passée de l’agenda ; elle reste **En attente** jusqu’à la décision d’un autre responsable. Le bureau approuve ou refuse avec un motif. Une même séance ne peut pas être déclarée deux fois. Chaque samedi constitue une séance différente, en heure d’Haïti.
+- **Suivi du bureau** : tableau par réunion avec « Non déclarée », export CSV, taux par membre sur une période de 366 jours maximum. Le taux compte les présences approuvées sur toutes les séances passées de l’agenda depuis l’adhésion, y compris celles sans déclaration. Les archives anciennes et les périodes de suspension historiques ne sont pas déduites de ce calcul. Un événement avec des déclarations ne peut plus être supprimé.
+- **Registre** : filtre **Actif** à l’ouverture, recherche par nom/numéro/grade/fonction, filtres de statut, grade, fonction et validité, tri sur les colonnes demandées, pagination et export de toute la sélection. Les CSV gardent les accents et neutralisent les cellules pouvant être interprétées comme des formules dans Excel.
+- **Retrait** : bouton **Gérer** → **Retirer ou suspendre**, avec motif et date obligatoires. Le retrait prend effet immédiatement ; la date saisie documente la décision. L’historique est conservé. Le numéro ACHUS ne change jamais et reste réservé après suppression. Les numéros à quatre chiffres sont pris en charge.
+- **Suppression définitive** : uniquement le président, uniquement après retrait ou suspension. Première confirmation par case à cocher ; deuxième confirmation en recopiant le numéro et « SUPPRIMER DÉFINITIVEMENT ». La fiche, ses messages et ses présences sont supprimés. Le compte de connexion Auth reste sans fiche et sans droit aux membres ; le fichier photo éventuel reste dans le stockage privé et demande un nettoyage distinct par le propriétaire. Le numéro réservé et les traces administratives restent conservés. Personne ne peut retirer sa propre fiche ou celle du président.
+- **Journal du bureau** : lecture seule, date/heure, numéro du responsable, membre concerné et action. Les changements de fiche, retraits, validations de présence et suppressions y sont tracés. L’attribution des rôles est réservée au président.
 
 ## Ce qui reste à faire (par vous)
 
-1. Appliquer le fichier SQL (voir plus bas). Tant que ce n'est pas fait, le nouveau site ne peut pas enregistrer les demandes.
-2. Ajouter deux secrets sur GitHub (voir plus bas), sinon le réveil automatique échoue.
-3. Déployer ce code sur Netlify (ou fusionner la demande, si Netlify est déjà relié au dépôt).
-4. Vérifier l'adresse du site dans Supabase Auth.
-5. Donner le rôle « bureau » aux autres responsables, depuis le registre (une fois connecté comme président).
+1. Relire et approuver la pull request. Comparer à nouveau `main` si Cursor, Claude ou Grok y a ajouté des changements entre-temps ; ne pas remplacer leur travail et ne pas modifier une ancienne migration déjà appliquée.
+2. Après accord explicite, vérifier que la refonte `20261104120000_portail_refonte.sql` est déjà installée, puis appliquer **uniquement** la nouvelle migration `20261104124515_messagerie_presences_registre.sql`. Faire un export de sauvegarde avant toute intervention sur la base en service. Ne pas rejouer l’ancienne migration après la nouvelle : elle redéfinirait certaines fonctions.
+3. Tester les trois rôles sur un environnement de recette. Le contrôle direct du schéma Supabase en service n’a pas été possible pendant ce travail : les deux connexions ont refusé l’accès. Les vérifications SQL utilisent l’instantané du dépôt ; les tests navigateur passent par un adaptateur local, pas par le service PostgREST hébergé.
+4. Publier sur le site Netlify existant **luxury-snickerdoodle-b2bd70**, après la migration approuvée. Aucun déploiement n’est déclenché par les scripts de test.
+5. Vérifier les réglages Auth et les deux secrets du keep-alive s’ils ne sont pas déjà configurés. Le président peut donner le rôle « Bureau » depuis **Registre des membres** → **Gérer**.
 
 Le live, les votes et la galerie de groupe ne sont pas refaits dans cet écran. Les tables existent et sont protégées. On pourra les rebrancher plus tard.
 
@@ -47,19 +56,35 @@ Ouvrez Safari. Allez sur le site. Largeur d'un iPhone : tout doit tenir sans dé
 12. Depuis le registre, le président peut ouvrir la carte et le certificat d'un autre membre, et imprimer (réglage d'impression : A4 paysage, marges aucune, arrière-plan graphique activé).
 13. Touchez le lien WhatsApp : il ouvre une discussion vers +509 39 18 0332.
 
+### Nouvelles fonctions : trois comptes de test
+
+Utilisez un président, un responsable du bureau et deux membres actifs distincts. Ne supprimez pas une vraie fiche pour essayer la fonction.
+
+1. **Messagerie** : A envoie à B. B voit un badge ; A et B voient le texte. Le président et un responsable non destinataires ne le voient pas. B marque le message lu ; le badge disparaît. Vérifiez aussi les messages envoyés et une réponse. Le compteur s’actualise à l’ouverture d’une page, après lecture et toutes les 60 secondes lorsque l’onglet est visible.
+2. **Annonce** : le bureau publie une annonce ; A la lit dans **Annonces du bureau**. A n’a pas de bouton Publier ni Supprimer.
+3. **Présence** : choisissez une séance réellement passée dans l’agenda, après l’adhésion de A. A déclare sa présence, voit « En attente » et ne peut pas déclarer deux fois la même date. La semaine suivante est une autre séance.
+4. **Validation** : le bureau ouvre **Valider les présences**, choisit la séance et approuve A. Pour un autre membre, refusez avec un motif. Chacun ne voit que son propre historique. Un responsable ne valide pas sa propre déclaration.
+5. **Taux** : sur une période comportant deux séances et une présence approuvée, le taux est 50 %. Un membre sans séance éligible voit « — ». Comparez les deux exports CSV aux tableaux.
+6. **Registre** : recherchez un nom accentué ou un numéro, combinez les filtres et changez le tri. L’export doit contenir tous les résultats filtrés, même au-delà de la page visible. Vérifiez aussi Adhésion et Validité.
+7. **Retrait** : le bureau suspend A avec motif et date. A perd immédiatement l’accès aux messages, même avec un ancien jeton de session. Le motif apparaît dans **Gérer**. Réactivez A si nécessaire : son numéro reste le même.
+8. **Suppression d’une fiche de test uniquement** : le bureau ne voit pas le bouton. Le président ne le voit qu’après retrait ; les deux étapes sont nécessaires. Une saisie erronée ne supprime rien. Après suppression, le journal et le numéro réservé restent présents. Une nouvelle adhésion ne reprend jamais ce numéro.
+9. **Mobile et clavier** : à 390 px et à 1280 px, seuls les tableaux défilent horizontalement dans leur cadre. Les fenêtres se ferment par Fermer ou Échap, et les champs ont une étiquette en français.
+
 ## Mettre en ligne
 
-### 1. Appliquer la migration (c'est vous qui le faites)
+### 1. Appliquer les migrations (après votre accord)
 
 Fichier exact :
 
-`supabase/migrations/20261104120000_portail_refonte.sql`
+Refonte initiale, **si elle n’est pas déjà appliquée** : `supabase/migrations/20261104120000_portail_refonte.sql`.
+
+Ensuite : `supabase/migrations/20261104124515_messagerie_presences_registre.sql`.
 
 Dans Supabase : projet **hyktpddailftuwmbakdm** → **SQL Editor** → New query → collez **tout** le fichier → Run.
 
-Le fichier contient déjà `BEGIN` et `COMMIT`. Ne l'entourez pas d'un autre BEGIN.
+Chaque fichier contient déjà `BEGIN` et `COMMIT`. Ne l’entourez pas d’un autre BEGIN. Aucun script de test ne doit être collé dans l’éditeur de production.
 
-Il ne supprime aucune fiche et aucun compte. Il peut être relancé s'il s'arrête au milieu (il reprend proprement). À la fin, le président existant est ACHUS-001 et les demandes en attente des anciens comptes apparaissent.
+La migration initiale conserve les fiches et rattache le président à ACHUS-001. La nouvelle migration ne supprime aucune fiche et conserve les anciens enregistrements de présence. Elle peut être réexécutée sans effacer les messages, décisions ou historiques. Ses nouvelles tables sont protégées par RLS ; les opérations sensibles vérifient le rôle en base.
 
 N'ajoutez jamais la clé `service_role` dans le site. Elle ne doit pas quitter Supabase.
 
@@ -71,7 +96,9 @@ Le dépôt contient `netlify.toml`. Il n'y a **pas** de commande de build. Le do
 
 Si le site est déjà relié à GitHub : fusionnez la demande, Netlify publie tout seul.
 
-Sinon : Netlify → Add new site → Import from Git → ce dépôt. Build command : laissez vide. Publish directory : `.`
+Sinon : ouvrez **le site existant** → Project configuration → Build & deploy → Continuous deployment → Link repository → `moiseczil-bit/ACHUS-portail`, branche `main`. Build command : vide. Publish directory : `.`. Ne créez pas un deuxième site : le domaine reste rattaché à `luxury-snickerdoodle-b2bd70`.
+
+Pour un déploiement manuel, publiez les fichiers statiques de cette version sur ce même site. Incluez `js/collaboration.js`, `js/app.js`, `js/documents.js`, `css/portail.css`, `index-portail.html`, `assets/` et `netlify.toml`. N’incluez pas `node_modules/`, les tests ou les fichiers de travail. Le `package.json` ne sert qu’aux tests : aucun build ni serveur Node n’est nécessaire pour le portail.
 
 ### 3. Les deux secrets GitHub (clics)
 
@@ -106,3 +133,24 @@ Sur l'offre gratuite, Supabase endort un projet qui ne reçoit aucune visite pen
 ## Dépôt public ou privé
 
 Le rendre privé est **facultatif**. La clé anon est faite pour être dans le navigateur : tout visiteur du site peut la voir. Elle ne devient dangereuse que si la base laisse tout modifier. Après cette migration, un visiteur ne peut plus lire les membres ni se donner un rôle. La clé secrète `service_role`, elle, ne doit jamais être publiée — elle n'est pas dans ce dépôt.
+
+## Vérifications reproductibles pour la personne qui maintient le code
+
+Le script SQL utilise un Postgres local jetable. Sans `psql`, il utilise Postgres embarqué en mémoire (PGlite). Il n’utilise aucune URL de base distante ni aucun secret.
+
+```sh
+npm ci
+bash scripts/test-migration.sh
+# Pour forcer le test embarqué, même si psql est installé :
+ACHUS_TEST_EMBARQUE=1 bash scripts/test-migration.sh
+
+# Vérification navigateur locale :
+npx playwright install chromium
+npm run test:interface
+```
+
+Les tests SQL reprennent l’instantané initial, vérifient la refonte, appliquent la nouvelle migration deux fois, exécutent les essais avec `anon` et `authenticated`, puis la réappliquent après utilisation pour vérifier la conservation. Ils couvrent l’usurpation d’expéditeur, la lecture privée, les champs immuables, les doublons de présence, les décisions, les retraits, la double confirmation, le journal et la réservation d’un numéro après suppression et recul de la séquence.
+
+Pour les autres applications de développement : les anciennes tables `presence` et `presences` ne sont pas transformées. Les nouvelles déclarations utilisent `presences_evenements`. Les signatures `approuver_membre(uuid)`, `changer_statut(uuid,text)` et `ping()` restent disponibles. Un retrait Inactif/Suspendu doit désormais appeler `retirer_membre(uuid,text,text,date)` : un ancien appel sans motif est refusé. Pour ne pas contourner l’historique, le statut et les identifiants ne sont plus modifiables par un `UPDATE` client direct. Les signatures et les droits sont définis dans la nouvelle migration ; aucun script ne la déploie automatiquement.
+
+Le test navigateur démarre un serveur sur `127.0.0.1` et une base jetable. Un adaptateur de test remplace le SDK distant et exécute les requêtes sous RLS : réception/lecture/envoi, déclaration/validation, export filtré de plus de 1 000 membres, retrait, refus de suppression au bureau, double confirmation présidentielle, journal, absence d’exécution HTML et absence de débordement horizontal. Il ne se connecte pas à Supabase en service. Les captures de contrôle vont dans `test-results/` (ignoré par Git).
