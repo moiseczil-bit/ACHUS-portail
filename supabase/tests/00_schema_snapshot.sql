@@ -192,3 +192,13 @@ CREATE POLICY read ON public.vote_reponses FOR SELECT USING (true);
 -- Comme sur le projet live : anon pouvait tout faire sur membres.
 GRANT ALL ON TABLE public.membres TO anon, authenticated;
 GRANT ALL ON ALL TABLES IN SCHEMA public TO anon, authenticated;
+
+-- Clés étrangères constatées lors de la vérification du projet hébergé.
+ALTER TABLE public.votes ADD COLUMN cree_par uuid REFERENCES public.membres(id);
+ALTER TABLE public.annonces ADD FOREIGN KEY (auteur_id) REFERENCES public.membres(id);
+ALTER TABLE public.photos ADD FOREIGN KEY (uploade_par) REFERENCES public.membres(id);
+ALTER TABLE public.presence ADD FOREIGN KEY (membre_id) REFERENCES public.membres(id);
+ALTER TABLE public.presence ADD FOREIGN KEY (valide_par) REFERENCES public.membres(id);
+ALTER TABLE public.presences ADD FOREIGN KEY (membre_id) REFERENCES public.membres(id);
+ALTER TABLE public.quiz_resultats ADD FOREIGN KEY (membre_id) REFERENCES public.membres(id);
+ALTER TABLE public.vote_reponses ADD FOREIGN KEY (membre_id) REFERENCES public.membres(id);
