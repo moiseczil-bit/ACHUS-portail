@@ -307,3 +307,5 @@ button:focus-visible,summary:focus-visible,.table-wrap:focus-visible{outline:3px
 .social-texte { white-space: pre-wrap; overflow-wrap: anywhere; }
 .social-commentaire { border-left: 3px solid #4A5878; padding: 0 12px; }
 .social-carte .btn { white-space: normal; max-width: 100%; }
+
+.voir-mot-de-passe{margin:-4px 0 12px;align-self:flex-start}

@@ -36,7 +36,8 @@ for (const file of ['supabase/tests/00_schema_snapshot.sql', 'supabase/tests/01_
   'supabase/migrations/20261104120000_portail_refonte.sql',
   'supabase/migrations/20261104124515_messagerie_presences_registre.sql',
   'supabase/migrations/20261104135930_correction_suppression_dependances.sql',
-  'supabase/migrations/20261104143144_reseau_social_gratuit.sql']) await db.exec(await readFile(resolve(root, file), 'utf8'));
+  'supabase/migrations/20261104143144_reseau_social_gratuit.sql',
+  'supabase/migrations/20261104183055_grade_personnel.sql']) await db.exec(await readFile(resolve(root, file), 'utf8'));
 await db.query('INSERT INTO auth.users(id,email,raw_user_meta_data) VALUES ($1,$2,$3),($4,$5,$6)',
   [PAUL, 'paul@example.ht', { prenom: 'Paul', nom: 'Joseph' }, ANNE, 'anne@example.ht', { prenom: 'Anne', nom: 'Louis' }]);
 await db.query("SELECT set_config('request.jwt.claim.sub',$1,false)", [PRESIDENT]);
@@ -79,7 +80,7 @@ export function createClient() {
     auth:{getSession:async()=>({data:{session:{user}}}),signOut:async()=>({error:null})} };
 }`;
 const tables = new Set(['membres', 'messages', 'presences_evenements', 'presences', 'evenements', 'annonces', 'historique_statuts', 'journal_admin', 'publications', 'commentaires', 'liens_familiaux', 'appels', 'reunions']);
-const fonctions = new Set(['contacts_messagerie', 'sessions_presence', 'statistiques_presences', 'decider_presence', 'retirer_membre', 'supprimer_membre', 'changer_statut', 'noms_contributions', 'masquer_contribution', 'gerer_lien_familial', 'enfants_parent', 'presences_enfant', 'inviter_appel', 'repondre_appel', 'creer_reunion', 'annuler_reunion']);
+const fonctions = new Set(['contacts_messagerie', 'sessions_presence', 'statistiques_presences', 'decider_presence', 'retirer_membre', 'supprimer_membre', 'changer_statut', 'noms_contributions', 'masquer_contribution', 'gerer_lien_familial', 'enfants_parent', 'presences_enfant', 'inviter_appel', 'repondre_appel', 'creer_reunion', 'annuler_reunion', 'modifier_mon_grade']);
 const ident = value => { if (!/^[a-z_]+$/.test(value)) throw new Error('Identifiant invalide'); return '"' + value + '"'; };
 async function requeteLocale(q, uid) {
   return db.transaction(async tx => {
@@ -158,9 +159,39 @@ try {
   async function nav(page, id) { await page.locator(`[data-page="${id}"]`).click(); await page.locator('#contenu[aria-busy="false"]').waitFor({ state: 'attached' }); }
   async function sansDebordement(page) { assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true, 'Débordement horizontal de la page'); }
 
+  // Test de visibilité des mots de passe sur la vraie page publique, avant toute connexion.
+  const authContext = await browser.newContext({ viewport:{width:390,height:844} });
+  const authPage = await authContext.newPage();
+  await authPage.route('https://**/*', route=>route.abort());
+  await authPage.goto(url);
+  const motPasse = authPage.locator('#login-password');
+  await motPasse.fill('Exemple-local-123');
+  assert.equal(await motPasse.getAttribute('type'), 'password');
+  await authPage.getByRole('button',{name:'Afficher le mot de passe',exact:true}).click();
+  assert.equal(await motPasse.getAttribute('type'), 'text');
+  assert.equal(await motPasse.inputValue(), 'Exemple-local-123');
+  await authPage.getByRole('button',{name:'Masquer le mot de passe',exact:true}).click();
+  assert.equal(await motPasse.getAttribute('type'), 'password');
+  await authPage.getByRole('button',{name:'Adhésion',exact:true}).click();
+  await authPage.locator('#reg-password').fill('Autre-exemple-123');
+  await authPage.getByRole('button',{name:'Afficher le mot de passe',exact:true}).click();
+  assert.equal(await authPage.locator('#reg-password').getAttribute('type'), 'text');
+  await authContext.close();
   const membre = await pagePour(PAUL);
   console.log('→ membre : messagerie et présences');
   assert.equal(await membre.locator('[data-page="registre"]').count(), 0);
+  await nav(membre, 'profil');
+  await membre.getByLabel('Grade à afficher sur ma carte', { exact: true }).fill('Sergent-chef');
+  await membre.getByRole('button', { name: 'Enregistrer mon grade', exact: true }).click();
+  await membre.getByText('Grade enregistré. Votre carte est actualisée.', { exact: true }).waitFor();
+  assert.equal(await membre.locator('.doc-carte').getByText('SERGENT-CHEF', { exact: true }).count(), 1);
+  assert.equal((await db.query('SELECT grade FROM public.membres WHERE id=$1', [paulId])).rows[0].grade, 'Sergent-chef');
+  await membre.reload();
+  await membre.locator('#ecran-app:not([hidden])').waitFor();
+  await nav(membre, 'profil');
+  assert.equal(await membre.getByLabel('Grade à afficher sur ma carte', {exact:true}).inputValue(), 'Sergent-chef');
+  await mkdir(resolve(root, 'test-results'), { recursive: true });
+  await membre.locator('.doc-carte').first().screenshot({path:resolve(root,'test-results/grade-personnel-carte.png')});
   await nav(membre, 'messages');
   assert.equal(await membre.locator('.message').count(), 1);
   assert.equal(await membre.evaluate(() => window.injection), undefined);
@@ -193,7 +224,9 @@ try {
   await membre.getByText('Bonjour ACHUS <img src=x onerror="window.injection=true">', { exact: true }).waitFor();
   assert.equal(await membre.evaluate(() => window.injection), undefined);
   await membre.getByLabel('Votre commentaire', { exact: true }).fill('Prêt pour notre réunion.');
+  const ancienCommenter = await membre.getByRole('button', { name: 'Commenter', exact: true }).elementHandle();
   await membre.getByRole('button', { name: 'Commenter', exact: true }).click();
+  await membre.waitForFunction(e => !e.isConnected, ancienCommenter);
   await membre.getByRole('button', { name: 'Voir les commentaires', exact: true }).click();
   await membre.getByText('Prêt pour notre réunion.', { exact: true }).waitFor();
   await sansDebordement(membre);

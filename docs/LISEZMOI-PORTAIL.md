@@ -196,3 +196,16 @@ Les invitations ne sont reçues que lorsque le portail est ouvert : pas de notif
 Les commandes `bash scripts/test-migration.sh` et `npm run test:interface` couvrent les anciennes fonctions et les nouvelles. Les essais SQL appliquent trois fois la migration sociale (deux fois avant utilisation, une fois après), contrôlent RLS, usurpation, droits parents, messages, appels, modération et conservation. Le navigateur utilise un adaptateur local exécutant les requêtes sous RLS ; il ne contacte ni Supabase en service ni Jitsi. Les captures vont dans `test-results/`, ignoré par Git.
 
 Sources techniques à revérifier avant une grande réunion : [FAQ Jitsi](https://jitsi.org/user-faq/) et [Démarrer une réunion](https://jitsi.github.io/handbook/docs/user-guide/user-guide-start-a-jitsi-meeting/).
+
+## Correction préparée : mot de passe visible et grade personnel
+
+Cette correction est préparée dans une nouvelle pull request ; elle n’est pas encore appliquée ni publiée.
+
+- **Connexion et adhésion** : bouton « Afficher le mot de passe » / « Masquer le mot de passe », utilisable au clavier. Le mot de passe reste masqué à l’ouverture ; le bouton ne change pas sa valeur et ne l’enregistre pas ailleurs.
+- **Mon profil → Mon grade** : un membre actif ou honoraire peut saisir son grade ACHUS en toutes lettres (80 caractères maximum) puis cliquer sur **Enregistrer mon grade**. La carte affichée et ses téléchargements, ainsi que le certificat, utilisent immédiatement le grade enregistré. Un rechargement garde le choix. Le bureau peut toujours corriger un grade depuis le registre.
+- Les comptes parents ne disposent pas de ce champ. Le grade est distinct du rôle : saisir un grade ne donne aucun droit de président ou de bureau. Les rôles, statuts, numéros et autres champs protégés gardent leurs protections. L’action ne peut cibler que la propre fiche de la personne connectée et reste tracée par le journal existant.
+- Le grade initial déjà présent n’est pas effacé : le membre peut le remplacer. Aucun grade existant n’est remplacé automatiquement pendant cette migration.
+
+**À faire après accord du propriétaire** : appliquer uniquement `supabase/migrations/20261104183055_grade_personnel.sql`, puis publier le HTML, le JS et le CSS de cette correction sur le même site Netlify. Les anciennes migrations ne doivent pas être rejouées.
+
+**Recette** : essayer Afficher puis Masquer à la connexion et à l’adhésion ; vérifier la conservation des caractères saisis. Avec un membre actif, remplacer le grade initial par « Sergent-chef », enregistrer, contrôler le recto de la carte, le certificat et les téléchargements, puis recharger. Vérifier qu’un parent ou un compte suspendu ne peut pas utiliser l’action et que le rôle/numéro/statut ne changent pas. Les tests SQL vérifient aussi les saisies vides, trop longues, numériques seules ou contenant un retour à la ligne, et la conservation après réapplication de la migration. Le test navigateur local vérifie le grade sur la carte et après rechargement.

@@ -346,6 +346,29 @@ async function pageProfil() {
   } else {
     docs.append(el("p", "meta", "Le certificat est disponible pour les membres actifs ou honoraires qui ont un numéro."));
   }
+  if (["actif", "honoraire"].includes(profil.statut) && profil.type_compte !== "parent") {
+    const gradeForm = el("form", "panneau");
+    gradeForm.style.marginBottom = "12px";
+    gradeForm.append(el("h3", null, "Mon grade"));
+    const grade = input({ value: profil.grade || "" });
+    grade.required = true; grade.maxLength = 80; grade.placeholder = "Ex. : Sergent";
+    gradeForm.append(champ("Grade à afficher sur ma carte", grade),
+      el("p", "meta", "Indiquez votre grade ACHUS. Après enregistrement, votre carte et votre certificat sont actualisés. Ce choix ne change pas vos droits dans le portail."));
+    const enregistrerGrade = el("button", "btn btn-navy", "Enregistrer mon grade");
+    enregistrerGrade.type = "submit"; gradeForm.append(enregistrerGrade);
+    gradeForm.onsubmit = async e => {
+      e.preventDefault(); enregistrerGrade.disabled = true;
+      try {
+        const { error } = await supabase.rpc("modifier_mon_grade", { p_grade: grade.value.trim() });
+        if (error) throw error;
+        await chargerProfil();
+        if (gradeForm.isConnected && page === "profil") await afficher("profil");
+        toast("Grade enregistré. Votre carte est actualisée.");
+      } catch (e) { toast(texteErreur(e), "error"); }
+      finally { enregistrerGrade.disabled = false; }
+    };
+    root.append(gradeForm);
+  }
   root.append(form, photoForm, lecture, docs);
   return root;
 }
@@ -884,6 +907,15 @@ async function demarrer() {
     await apercu();
     return;
   }
+  document.querySelectorAll("[data-mot-de-passe]").forEach(bouton => {
+    bouton.onclick = () => {
+      const controle = document.getElementById(bouton.dataset.motDePasse);
+      const visible = controle.type === "password";
+      controle.type = visible ? "text" : "password";
+      bouton.textContent = visible ? "Masquer le mot de passe" : "Afficher le mot de passe";
+      bouton.setAttribute("aria-pressed", String(visible));
+    };
+  });
   lierAuth();
   if (location.hash === "#adhesion") montrerAdhesion();
   const { createClient } = await import("https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.4/+esm");
