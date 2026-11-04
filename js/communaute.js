@@ -15,7 +15,7 @@ export function lienSalle(salle, audio = false) {
   if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(salle)) throw new Error('Salle invalide.');
   return `https://meet.jit.si/ACHUS-${salle}#config.prejoinPageEnabled=true${audio ? '&config.startWithVideoMuted=true' : ''}`;
 }
-export function creerCommunaute({ client, profil, estBureau, toast }) {
+export function creerCommunaute({ client, profil, estBureau, toast, avatar, avatarGrand, ouvrirProfil }) {
   const requete = async q => { const { data, error } = await q; if (error) throw error; return data || []; };
   const rpc = (f, args = {}) => requete(client().rpc(f, args));
   const erreur = e => /42P01|42883|PGRST20[25]/.test(e?.code || '') ? 'Cette fonction attend la mise à jour de la base. Les fonctions déjà publiées restent disponibles.' : (e?.message || 'Impossible de terminer. Réessayez.');
@@ -55,21 +55,37 @@ export function creerCommunaute({ client, profil, estBureau, toast }) {
   const rafraichir = (node, charger) => bouton('Actualiser', () => renouveler(node, charger));
   const noms = async lignes => {
     const ids = [...new Set(lignes.map(x => x.auteur))];
-    return new Map((ids.length ? await rpc('noms_contributions', { p_ids: ids }) : []).map(m => [m.id, nom(m)]));
+    return new Map((ids.length ? await rpc('profils_contributions', { p_ids: ids }) : []).map(m => [m.id, m]));
   };
   async function fil() {
-    const root = n('div', 'social-pile');
+    const root = n('div', 'social-pile mur-communaute');
+    const couverture = n('section','mur-profil');
+    couverture.append(n('div','mur-couverture','ACHUS · Ensemble, plus loin'));
+    const identite=n('div','mur-identite'); identite.append(avatarGrand(profil()));
+    const infos=n('div'); infos.append(n('h2','',nom(profil())),n('p','meta',profil().grade||'Membre ACHUS')); identite.append(infos);
+    identite.append(bouton('Modifier mon profil',ouvrirProfil)); couverture.append(identite);root.append(couverture);
     root.append(n('p', 'meta', 'Un espace réservé à la communauté ACHUS. Respectez les autres membres ; le bureau peut retirer une publication ou un commentaire.'));
-    const composer = panneau('Partager avec la communauté'); const form = n('form');
-    const texte = champ(form, 'Votre publication', 'textarea'); texte.required = true; texte.maxLength = 4000; texte.rows = 3;
+    const composer = panneau(); composer.classList.add('mur-composer');
+    const titreComposer=n('div','mur-auteur');titreComposer.append(avatar(profil()),n('h2','','Quoi de neuf, '+(profil().prenom||'membre')+' ?'));composer.append(titreComposer);const form = n('form');
+    const texte = champ(form, 'Votre publication', 'textarea'); texte.required = true; texte.maxLength = 4000; texte.rows = 3; texte.placeholder='Partagez une nouvelle, une idée ou un message…';
     const publier = n('button', 'btn btn-navy', 'Publier'); publier.type = 'submit'; form.append(publier); composer.append(form); root.append(composer);
-    const liste = n('div', 'social-pile'); const outils = n('div', 'social-actions'); let page = 0;
+    const liste = n('div', 'social-pile'); liste.setAttribute('aria-label','Mur des publications'); const outils = n('div', 'social-actions'); let page = 0; let personnel=false;
+    const onglets=n('div','mur-onglets');
+    const tousPosts=bouton('Toute la communauté',async()=>{personnel=false;page=0;await dessiner();});
+    const mesPosts=bouton('Mon mur',async()=>{personnel=true;page=0;await dessiner();});
+    onglets.append(tousPosts,mesPosts);root.append(onglets);
     const dessiner = async () => {
-      const posts = await requete(client().from('publications').select('*').order('cree_le', { ascending: false }).order('id').range(page * 20, page * 20 + 19));
+      let requetePosts=client().from('publications').select('*');
+      if(personnel)requetePosts=requetePosts.eq('auteur',profil().id);
+      const posts = await requete(requetePosts.order('cree_le', { ascending: false }).order('id').range(page * 20, page * 20 + 19));
+      tousPosts.setAttribute('aria-pressed',String(!personnel));mesPosts.setAttribute('aria-pressed',String(personnel));
       const auteurs = await noms(posts); liste.replaceChildren();
       if (!posts.length) liste.append(n('p', 'meta', 'Aucune publication sur cette page.'));
       for (const p of posts) {
-        const carte = panneau(); carte.append(n('p', 'meta', `${auteurs.get(p.auteur) || 'Membre'} · ${date(p.cree_le)}${p.masque ? ' · Retirée' : ''}`), n('p', 'social-texte', p.contenu));
+        const carte = panneau(); carte.classList.add('mur-publication');
+        const auteur=auteurs.get(p.auteur)||{id:p.auteur,prenom:'Membre'};
+        const entete=n('div','mur-auteur');const details=n('div');details.append(n('strong','',nom(auteur)),n('p','meta',`${date(p.cree_le)}${p.masque?' · Retirée':''}`));entete.append(avatar(auteur),details);
+        carte.append(entete,n('p', 'social-texte', p.contenu));
         if (p.auteur === profil().id || estBureau(profil())) carte.append(bouton('Retirer la publication', async () => {
           if (!window.confirm('Retirer cette publication du fil ?')) return;
           await rpc('masquer_contribution', { p_id: p.id, p_commentaire: false }); await dessiner();
@@ -83,7 +99,8 @@ export function creerCommunaute({ client, profil, estBureau, toast }) {
             curseur += lot.length; const auteursC = await noms(lot); suivant.remove();
             if (!lot.length && curseur === 0) commentaires.append(n('p', 'meta', 'Aucun commentaire.'));
             lot.forEach(c => {
-              const bloc = n('div', 'social-commentaire'); bloc.append(n('p', 'meta', `${auteursC.get(c.auteur) || 'Membre'} · ${date(c.cree_le)}${c.masque ? ' · Retiré' : ''}`), n('p', 'social-texte', c.contenu));
+              const bloc = n('div', 'social-commentaire'); const auteurC=auteursC.get(c.auteur)||{id:c.auteur,prenom:'Membre'};
+              const enteteC=n('div','mur-auteur');enteteC.append(avatar(auteurC),n('strong','',nom(auteurC)));bloc.append(enteteC,n('p','meta',`${date(c.cree_le)}${c.masque?' · Retiré':''}`),n('p', 'social-texte', c.contenu));
               if (c.auteur === profil().id || estBureau(profil())) bloc.append(bouton('Retirer le commentaire', async () => {
                 if (!window.confirm('Retirer ce commentaire ?')) return;
                 await rpc('masquer_contribution', { p_id: c.id, p_commentaire: true }); bloc.remove();

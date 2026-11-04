@@ -39,6 +39,8 @@ CREATE TABLE IF NOT EXISTS storage.buckets (
   id text PRIMARY KEY,
   name text NOT NULL,
   public boolean DEFAULT false,
+  file_size_limit bigint,
+  allowed_mime_types text[],
   created_at timestamptz DEFAULT now()
 );
 
@@ -47,8 +49,14 @@ CREATE TABLE IF NOT EXISTS storage.objects (
   bucket_id text,
   name text,
   owner uuid,
-  created_at timestamptz DEFAULT now()
+  created_at timestamptz DEFAULT now(),
+  UNIQUE(bucket_id,name)
 );
+
+ALTER TABLE storage.objects ENABLE ROW LEVEL SECURITY;
+GRANT USAGE ON SCHEMA storage TO anon, authenticated;
+GRANT SELECT ON storage.objects TO anon;
+GRANT SELECT,INSERT,UPDATE,DELETE ON storage.objects TO authenticated;
 
 CREATE OR REPLACE FUNCTION storage.foldername(name text)
 RETURNS text[]

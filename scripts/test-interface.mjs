@@ -37,7 +37,8 @@ for (const file of ['supabase/tests/00_schema_snapshot.sql', 'supabase/tests/01_
   'supabase/migrations/20261104124515_messagerie_presences_registre.sql',
   'supabase/migrations/20261104135930_correction_suppression_dependances.sql',
   'supabase/migrations/20261104143144_reseau_social_gratuit.sql',
-  'supabase/migrations/20261104183055_grade_personnel.sql']) await db.exec(await readFile(resolve(root, file), 'utf8'));
+  'supabase/migrations/20261104183055_grade_personnel.sql',
+  'supabase/migrations/20261104184248_photos_profil_communaute.sql']) await db.exec(await readFile(resolve(root, file), 'utf8'));
 await db.query('INSERT INTO auth.users(id,email,raw_user_meta_data) VALUES ($1,$2,$3),($4,$5,$6)',
   [PAUL, 'paul@example.ht', { prenom: 'Paul', nom: 'Joseph' }, ANNE, 'anne@example.ht', { prenom: 'Anne', nom: 'Louis' }]);
 await db.query("SELECT set_config('request.jwt.claim.sub',$1,false)", [PRESIDENT]);
@@ -74,13 +75,18 @@ class Requete {
   maybeSingle() { this.val.single = true; return this; }
   then(ok,no) { return fetch('/__test__/query', { method: 'POST', headers: {'Content-Type':'application/json','x-test-user':localStorage.getItem('achus-test-user')}, body: JSON.stringify(this.val) }).then(r=>r.json()).then(ok,no); }
 }
+async function storageRequest(operation,bucket,path,body) {
+  return fetch('/__test__/storage?operation='+operation+'&bucket='+encodeURIComponent(bucket)+'&path='+encodeURIComponent(path),
+    {method:'POST',headers:{'x-test-user':localStorage.getItem('achus-test-user'),'Content-Type':operation==='upload'?'image/webp':'application/json'},body:body||''}).then(r=>r.json());
+}
 export function createClient() {
   const user = {id:localStorage.getItem('achus-test-user'),email:'test@example.ht'};
   return { from: table=>new Requete(table), rpc:(name,params={})=>new Requete(null,name,params),
+    storage:{from:bucket=>({createSignedUrl:path=>storageRequest('sign',bucket,path),upload:(path,file)=>storageRequest('upload',bucket,path,file),remove:paths=>storageRequest('remove',bucket,paths[0])})},
     auth:{getSession:async()=>({data:{session:{user}}}),signOut:async()=>({error:null})} };
 }`;
 const tables = new Set(['membres', 'messages', 'presences_evenements', 'presences', 'evenements', 'annonces', 'historique_statuts', 'journal_admin', 'publications', 'commentaires', 'liens_familiaux', 'appels', 'reunions']);
-const fonctions = new Set(['contacts_messagerie', 'sessions_presence', 'statistiques_presences', 'decider_presence', 'retirer_membre', 'supprimer_membre', 'changer_statut', 'noms_contributions', 'masquer_contribution', 'gerer_lien_familial', 'enfants_parent', 'presences_enfant', 'inviter_appel', 'repondre_appel', 'creer_reunion', 'annuler_reunion', 'modifier_mon_grade']);
+const fonctions = new Set(['contacts_messagerie', 'sessions_presence', 'statistiques_presences', 'decider_presence', 'retirer_membre', 'supprimer_membre', 'changer_statut', 'noms_contributions', 'masquer_contribution', 'gerer_lien_familial', 'enfants_parent', 'presences_enfant', 'inviter_appel', 'repondre_appel', 'creer_reunion', 'annuler_reunion', 'modifier_mon_grade', 'profils_contributions']);
 const ident = value => { if (!/^[a-z_]+$/.test(value)) throw new Error('Identifiant invalide'); return '"' + value + '"'; };
 async function requeteLocale(q, uid) {
   return db.transaction(async tx => {
@@ -116,8 +122,41 @@ async function requeteLocale(q, uid) {
     return { data: q.options?.head ? null : q.single ? result.rows[0] || null : result.rows, count: q.options?.head ? result.rows[0].count : null, error: null };
   });
 }
+const photosLocales = new Map(); const photosSignees = new Map();
 const server = createServer(async (req, res) => {
   try {
+    if (req.url.startsWith('/__test__/avatar?')) {
+      const token = new URL(req.url,'http://local').searchParams.get('token'); const photo=photosSignees.get(token);
+      if(!photo){res.writeHead(403).end();return;}
+      res.setHeader('Content-Type','image/webp');res.end(photo);return;
+    }
+    if(req.url.startsWith('/__test__/storage?') && req.method==='POST') {
+      const uid=req.headers['x-test-user'];assert.ok([PAUL,ANNE,PRESIDENT,BUREAU,PARENT].includes(uid));
+      const u=new URL(req.url,'http://local');const bucket=u.searchParams.get('bucket');const path=u.searchParams.get('path');const operation=u.searchParams.get('operation');
+      assert.equal(bucket,'photos-profils');const morceaux=[];for await(const c of req)morceaux.push(c);const photo=Buffer.concat(morceaux);
+      let resultat;
+      try {
+        if(operation==='upload') {assert.ok(photo.length<=524288);assert.equal(req.headers['content-type'],'image/webp');}
+        const donnees=await db.transaction(async tx=>{
+          await tx.query("SELECT set_config('request.jwt.claim.sub',$1,true)",[uid]);await tx.exec('SET LOCAL ROLE authenticated');
+          if(operation==='sign') {
+            const lignes=await tx.query('SELECT id FROM storage.objects WHERE bucket_id=$1 AND name=$2',[bucket,path]);
+            if(!lignes.rows.length || !photosLocales.has(path))throw new Error('Photo absente ou accès refusé.');
+          } else if(operation==='upload') {
+            const existe=await tx.query('SELECT id FROM storage.objects WHERE bucket_id=$1 AND name=$2',[bucket,path]);
+            if(existe.rows.length) await tx.query('UPDATE storage.objects SET name=$2 WHERE bucket_id=$1 AND name=$2',[bucket,path]);
+            else await tx.query('INSERT INTO storage.objects(bucket_id,name) VALUES($1,$2)',[bucket,path]);
+          } else if(operation==='remove') await tx.query('DELETE FROM storage.objects WHERE bucket_id=$1 AND name=$2',[bucket,path]);
+          else throw new Error('Action stockage inconnue');
+          return true;
+        });
+        if(donnees && operation==='upload')photosLocales.set(path,photo);
+        if(donnees && operation==='remove')photosLocales.delete(path);
+        let data={};if(operation==='sign') {const token=crypto.randomUUID();photosSignees.set(token,photosLocales.get(path));data={signedUrl:url+'/__test__/avatar?token='+token};}
+        resultat={data,error:null};
+      } catch(e){resultat={data:null,error:{message:e.message,code:e.code}};}
+      res.setHeader('Content-Type','application/json');res.end(JSON.stringify(resultat));return;
+    }
     if (req.url === '/__test__/sdk.js') { res.setHeader('Content-Type', 'text/javascript'); res.end(sdk); return; }
     if (req.url === '/__test__/query' && req.method === 'POST') {
       let body = ''; for await (const chunk of req) body += chunk;
@@ -181,6 +220,31 @@ try {
   console.log('→ membre : messagerie et présences');
   assert.equal(await membre.locator('[data-page="registre"]').count(), 0);
   await nav(membre, 'profil');
+  const imageTest = await membre.evaluate(() => { const c=document.createElement('canvas');c.width=80;c.height=100;const ctx=c.getContext('2d');ctx.fillStyle='#B01C2A';ctx.fillRect(0,0,80,100);return c.toDataURL('image/png').split(',')[1]; });
+  await membre.getByLabel('Choisir ma photo de profil',{exact:true}).setInputFiles({name:'profil.png',mimeType:'image/png',buffer:Buffer.from(imageTest,'base64')});
+  await membre.getByRole('button',{name:'Enregistrer ma photo de profil',exact:true}).click();
+  await membre.getByText('Photo de profil enregistrée.',{exact:true}).waitFor();
+  await membre.locator('.photo-profil-form .avatar-profil img').waitFor();
+  assert.equal((await db.query('SELECT count(*)::int AS n FROM storage.objects WHERE bucket_id=$1 AND name=$2',['photos-profils',paulId+'/avatar.webp'])).rows[0].n,1);
+  // Remplacer et retirer sa photo avant de la remettre pour le mur.
+  let ancienFormPhoto=await membre.locator('.photo-profil-form').elementHandle();
+  await membre.getByLabel('Choisir ma photo de profil',{exact:true}).setInputFiles({name:'autre.png',mimeType:'image/png',buffer:Buffer.from(imageTest,'base64')});
+  await membre.getByRole('button',{name:'Enregistrer ma photo de profil',exact:true}).click();
+  await membre.waitForFunction(e=>!e.isConnected,ancienFormPhoto);
+  await membre.locator('.photo-profil-form .avatar-profil img').waitFor();
+  assert.equal((await db.query('SELECT count(*)::int AS n FROM storage.objects WHERE bucket_id=$1 AND name=$2',['photos-profils',paulId+'/avatar.webp'])).rows[0].n,1);
+  ancienFormPhoto=await membre.locator('.photo-profil-form').elementHandle();
+  membre.once('dialog',d=>d.accept());
+  await membre.getByRole('button',{name:'Retirer ma photo de profil',exact:true}).click();
+  await membre.waitForFunction(e=>!e.isConnected,ancienFormPhoto);
+  assert.equal(await membre.locator('.photo-profil-form .avatar-profil img').count(),0);
+  assert.equal((await db.query('SELECT count(*)::int AS n FROM storage.objects WHERE bucket_id=$1 AND name=$2',['photos-profils',paulId+'/avatar.webp'])).rows[0].n,0);
+  ancienFormPhoto=await membre.locator('.photo-profil-form').elementHandle();
+  await membre.getByLabel('Choisir ma photo de profil',{exact:true}).setInputFiles({name:'profil.png',mimeType:'image/png',buffer:Buffer.from(imageTest,'base64')});
+  await membre.getByRole('button',{name:'Enregistrer ma photo de profil',exact:true}).click();
+  await membre.waitForFunction(e=>!e.isConnected,ancienFormPhoto);
+  await membre.locator('.photo-profil-form .avatar-profil img').waitFor();
+
   await membre.getByLabel('Grade à afficher sur ma carte', { exact: true }).fill('Sergent-chef');
   await membre.getByRole('button', { name: 'Enregistrer mon grade', exact: true }).click();
   await membre.getByText('Grade enregistré. Votre carte est actualisée.', { exact: true }).waitFor();
@@ -218,11 +282,19 @@ try {
   const admin = await pagePour(PRESIDENT);
   console.log('→ président : validation, registre et export complet');
   console.log('→ communauté, appels, réunions et accès parent');
+  await nav(membre, 'accueil');
+  await membre.locator('.mur-profil .avatar-profil img').waitFor();
+  await sansDebordement(membre);
+  await membre.evaluate(()=>window.scrollTo(0,0));
+  await membre.screenshot({path:resolve(root,'test-results/accueil-mur-mobile.png'),fullPage:true});
   await nav(membre, 'fil');
   await membre.getByLabel('Votre publication', { exact: true }).fill('Bonjour ACHUS <img src=x onerror="window.injection=true">');
   await membre.getByRole('button', { name: 'Publier', exact: true }).click();
   await membre.getByText('Bonjour ACHUS <img src=x onerror="window.injection=true">', { exact: true }).waitFor();
   assert.equal(await membre.evaluate(() => window.injection), undefined);
+  await membre.locator('.mur-publication .avatar-profil img').waitFor();
+  await membre.getByRole('button',{name:'Mon mur',exact:true}).click();
+  await membre.getByRole('button',{name:'Mon mur',exact:true,pressed:true}).waitFor();
   await membre.getByLabel('Votre commentaire', { exact: true }).fill('Prêt pour notre réunion.');
   const ancienCommenter = await membre.getByRole('button', { name: 'Commenter', exact: true }).elementHandle();
   await membre.getByRole('button', { name: 'Commenter', exact: true }).click();
@@ -247,6 +319,11 @@ try {
   await anne.getByRole('button', { name: 'Terminer', exact: true }).click();
   await anne.getByText(/Audio.*Terminé/).waitFor();
   await sansDebordement(anne);
+  await nav(anne,'fil');
+  await anne.locator('.mur-publication .avatar-profil img').waitFor();
+  await sansDebordement(anne);
+  await anne.evaluate(()=>window.scrollTo(0,0));
+  await anne.screenshot({path:resolve(root,'test-results/communaute-bureau.png'),fullPage:true});
   await nav(admin, 'reunions');
   await admin.getByLabel('Titre', { exact: true }).fill('Grande réunion ACHUS');
   const local = d => new Date(d).toISOString().slice(0,16);
@@ -343,7 +420,7 @@ try {
   await nav(admin, 'registre');
   await admin.screenshot({ path: resolve(root, 'test-results/registre-mobile.png'), fullPage: true });
   assert.deepEqual(erreurs, []);
-  console.log('INTERFACE_OK : messages, présences, CSV, retrait, suppression, communauté, appels, réunions, parents, révocation et mobile.');
+  console.log('INTERFACE_OK : mots de passe, grade/carte, photo de profil, accueil/mur, messages, présences, CSV, appels, réunions, parents et droits.');
 } catch (error) {
   await mkdir(resolve(root, 'test-results'), { recursive: true });
   if (browser) {

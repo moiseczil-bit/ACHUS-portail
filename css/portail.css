@@ -309,3 +309,36 @@ button:focus-visible,summary:focus-visible,.table-wrap:focus-visible{outline:3px
 .social-carte .btn { white-space: normal; max-width: 100%; }
 
 .voir-mot-de-passe{margin:-4px 0 12px;align-self:flex-start}
+
+/* Mur ACHUS : identité, fil central et cartes de publication. */
+.accueil-mur{display:grid;grid-template-columns:minmax(0,1fr);gap:20px;align-items:start}
+.accueil-aside{display:grid;gap:16px;min-width:0}
+.mur-communaute{width:100%;max-width:780px;margin:0 auto}
+.mur-profil{background:#fff;border:1px solid var(--line);border-radius:18px;overflow:hidden}
+.mur-couverture{min-height:130px;padding:22px;color:#fff;font-weight:800;letter-spacing:.04em;background:linear-gradient(118deg,#0F2350 0%,#243d71 70%,#B01C2A 70%,#B01C2A 76%,#0F2350 76%)}
+.mur-identite{display:flex;align-items:center;flex-wrap:wrap;gap:16px;padding:0 20px 20px}
+.mur-identite>.avatar-grand{margin-top:-38px;position:relative;border:5px solid #fff}
+.mur-identite>div{flex:1;min-width:120px}
+.mur-identite h2{font-size:22px;color:var(--navy);margin:12px 0 0;overflow-wrap:anywhere}
+.mur-identite p{margin:4px 0 0}
+.avatar-profil{display:inline-flex;width:44px;height:44px;flex:none;border-radius:50%;overflow:hidden;align-items:center;justify-content:center;background:#E8EEF9;color:var(--navy);font-weight:800;vertical-align:middle}
+.avatar-grand{width:96px;height:96px;font-size:26px}
+.avatar-profil img{display:block;width:100%;height:100%;object-fit:cover}
+.mur-auteur{display:flex;gap:12px;align-items:center;min-width:0}
+.mur-auteur>div{min-width:0}
+.mur-auteur strong{overflow-wrap:anywhere;color:var(--navy)}
+.mur-auteur .meta{margin:3px 0 0;font-size:12px}
+.mur-composer .mur-auteur{margin-bottom:18px}
+.mur-composer h2{margin:0;font-size:16px}
+.mur-composer textarea{border-radius:16px;background:var(--bg);min-height:100px}
+.mur-onglets{display:flex;gap:8px;border-bottom:1px solid var(--line);padding-bottom:10px;flex-wrap:wrap}
+.mur-onglets [aria-pressed="true"]{background:var(--navy);color:#fff;border-color:var(--navy)}
+.mur-publication{box-shadow:0 4px 16px rgba(15,35,80,.035);padding:20px}
+.mur-publication>.social-texte{font-size:16px;line-height:1.65;margin:18px 0}
+.mur-publication>.btn{margin:0 6px 12px 0}
+.mur-publication>.social-pile{margin:8px 0 16px}
+.mur-publication .social-commentaire{background:var(--bg);border:0;border-radius:14px;padding:14px}
+.mur-publication .social-commentaire p{margin:8px 0}
+.photo-profil-form{margin-bottom:16px}
+.photo-profil-form form{display:grid;gap:12px;margin-top:16px}
+@media(min-width:1150px){.accueil-mur{grid-template-columns:minmax(0,1fr) 240px}.accueil-aside{position:sticky;top:24px}.accueil-aside .carte-info{background:#fff}}

@@ -1,3 +1,4 @@
+import { creerPhotosProfil } from "./photos-profil.js";
 import { creerCommunaute } from "./communaute.js";
 import { creerCollaboration } from "./collaboration.js";
 import {
@@ -40,7 +41,11 @@ const collaboration = creerCollaboration({
   }
 });
 
-const communaute = creerCommunaute({ client: () => supabase, profil: () => profil, estBureau, toast });
+const photosProfil = creerPhotosProfil({ client: () => supabase, profil: () => profil, toast,
+  actualiser: async () => { if (page === "profil" && session) await afficher("profil"); }
+});
+const communaute = creerCommunaute({ client: () => supabase, profil: () => profil, estBureau, toast,
+  avatar: m => photosProfil.avatar(m), avatarGrand: m => photosProfil.avatar(m, true), ouvrirProfil: () => afficher("profil") });
 
 const $ = (id) => document.getElementById(id);
 
@@ -260,7 +265,11 @@ async function pageAccueil() {
   const ev = await chargerEvenements();
   droit.append(blocAgenda(ev));
   grille.append(gauche, droit);
-  root.append(grille, contactsNode());
+  if (["actif", "honoraire"].includes(profil.statut)) {
+    grille.className = "accueil-aside";
+    const mur = el("div", "accueil-mur");
+    mur.append(await communaute.fil(), grille); root.append(mur, contactsNode());
+  } else root.append(grille, contactsNode());
   return root;
 }
 
@@ -369,6 +378,7 @@ async function pageProfil() {
     };
     root.append(gradeForm);
   }
+  if (["actif", "honoraire"].includes(profil.statut)) root.prepend(photosProfil.formulaire());
   root.append(form, photoForm, lecture, docs);
   return root;
 }
@@ -686,7 +696,7 @@ function construireNav() {
     ["Principal", [["accueil", "Accueil"], ["profil", "Mon profil"], ["agenda", "Agenda"], ["presences", "Mes présences"]]]
   ];
   if (["actif", "honoraire"].includes(profil?.statut)) {
-    items[0][1].push(["fil", "Communauté"], ["reunions", "Réunions en ligne"]);
+    items[0][1].push(["fil", "Ma communauté"], ["reunions", "Réunions en ligne"]);
     if (profil.statut === "actif") items[0][1].push(["appels", "Appels audio et vidéo"]);
     if (profil.type_compte === "parent" || estBureau(profil)) items[0][1].push(["famille", "Espace parents"]);
   }
