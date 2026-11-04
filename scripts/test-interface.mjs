@@ -271,6 +271,14 @@ try {
   await membre.getByText('Photo de profil enregistrée.',{exact:true}).waitFor();
   await membre.locator('.photo-profil-form .avatar-profil img').waitFor();
   assert.equal((await db.query('SELECT count(*)::int AS n FROM storage.objects WHERE bucket_id=$1 AND name=$2',['photos-profils',paulId+'/avatar.webp'])).rows[0].n,1);
+  // Safari : pas d'encodage WebP natif et décodage ImageBitmap indisponible.
+  // Le véritable WASM doit produire un WebP, sans modifier les règles Storage.
+  await membre.evaluate(() => {
+    window.__bitmapNatif = window.createImageBitmap;
+    window.__blobNatif = HTMLCanvasElement.prototype.toBlob;
+    window.createImageBitmap = async () => { throw new Error('ImageBitmap indisponible'); };
+    HTMLCanvasElement.prototype.toBlob = function(cb) { return window.__blobNatif.call(this, cb, 'image/png'); };
+  });
   // Remplacer et retirer sa photo avant de la remettre pour le mur.
   let ancienFormPhoto=await membre.locator('.photo-profil-form').elementHandle();
   await membre.getByLabel('Choisir ma photo de profil',{exact:true}).setInputFiles({name:'autre.png',mimeType:'image/png',buffer:Buffer.from(imageTest,'base64')});
@@ -278,6 +286,13 @@ try {
   await membre.waitForFunction(e=>!e.isConnected,ancienFormPhoto);
   await membre.locator('.photo-profil-form .avatar-profil img').waitFor();
   assert.equal((await db.query('SELECT count(*)::int AS n FROM storage.objects WHERE bucket_id=$1 AND name=$2',['photos-profils',paulId+'/avatar.webp'])).rows[0].n,1);
+  const webpSecours=photosLocales.get(paulId+'/avatar.webp');
+  assert.equal(webpSecours.subarray(0,4).toString(),'RIFF');
+  assert.equal(webpSecours.subarray(8,12).toString(),'WEBP');
+  await membre.evaluate(() => {
+    window.createImageBitmap = window.__bitmapNatif;
+    HTMLCanvasElement.prototype.toBlob = window.__blobNatif;
+  });
   ancienFormPhoto=await membre.locator('.photo-profil-form').elementHandle();
   membre.once('dialog',d=>d.accept());
   await membre.getByRole('button',{name:'Retirer ma photo de profil',exact:true}).click();
