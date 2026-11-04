@@ -233,3 +233,14 @@ Le SDK reste à la version 2.49.4, mais sa distribution officielle est maintenan
 Vérification ajoutée : véritable SDK local dans un navigateur avec réponses réseau de test, clic pendant un chargement volontairement retardé, refus d’identifiants, nouvelle tentative réussie, affichage de l’accueil et restauration après rechargement. Les identifiants et jetons de ce test sont fictifs ; aucune connexion à un vrai compte n’est réalisée par le script. La recette d’un compte réel reste distincte.
 
 Validation du correctif : essai navigateur du véritable SDK local réussi pour démarrage retardé, refus des identifiants, nouvelle tentative réussie et restauration de session. Les tests de régression du portail passent aussi. Cela ne confirme pas les identifiants d’un compte réel ; aucun mot de passe existant n’a été lu ou modifié.
+
+
+## Correction des photos sur iPhone
+
+**Fait** : le traitement détecte le format réellement retourné par le navigateur. Safari peut retourner un PNG à une demande WebP, ce qui déclenchait « Impossible de préparer cette photo » avant tout envoi. Un encodeur local jSquash WebP 1.5.0 est désormais chargé en secours. Le décodage dispose aussi d'un recours à une image HTML si ImageBitmap est indisponible. Le recadrage 512 × 512, le réencodage sans métadonnées, la limite de 512 Ko, le chemin avatar.webp et toutes les règles du stockage privé sont conservés. Aucune migration SQL nécessaire.
+
+**Vérification automatisée** : enregistrement puis remplacement avec le véritable encodeur WASM en simulant un navigateur sans encodage WebP natif et sans ImageBitmap ; contrôle de la signature RIFF/WEBP et des permissions Storage.
+
+**Reste à vérifier** : choisir un JPEG sur un véritable iPhone, enregistrer, recharger et vérifier la photo dans Accueil et Communauté ; remplacer puis retirer la photo. Les fichiers HEIC ne sont pas acceptés par ce formulaire : exporter en JPG si nécessaire.
+
+**Déploiement** : inclure `js/encoder-photo.js` et tout `js/vendor/webp-1.5.0/`, en particulier `webp_enc.wasm`. Ne pas remplacer uniquement photos-profil.js.

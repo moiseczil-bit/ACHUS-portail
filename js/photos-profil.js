@@ -36,15 +36,31 @@ export function creerPhotosProfil({client,profil,toast,actualiser}) {
     if(file.size>5*1024*1024) throw new Error('La photo doit peser moins de 5 Mo.');
     let bitmap;
     try {
-      bitmap=await createImageBitmap(file);
+      try { bitmap=await createImageBitmap(file); }
+      catch {
+        const src=URL.createObjectURL(file);
+        try {
+          bitmap=await new Promise((ok,refuser)=>{
+            const image=new Image(); image.onload=()=>ok(image);
+            image.onerror=()=>refuser(new Error('Cette image ne peut pas être lue. Choisissez une photo JPG, PNG ou WebP.'));
+            image.src=src;
+          });
+        } finally { URL.revokeObjectURL(src); }
+      }
       if(!bitmap.width || !bitmap.height || bitmap.width*bitmap.height>40000000) throw new Error('Dimensions de photo trop grandes.');
       const canvas=document.createElement('canvas'); canvas.width=512; canvas.height=512;
       const ctx=canvas.getContext('2d'); const cote=Math.min(bitmap.width,bitmap.height);
       ctx.drawImage(bitmap,(bitmap.width-cote)/2,(bitmap.height-cote)/2,cote,cote,0,0,512,512);
-      const blob=await new Promise(ok=>canvas.toBlob(ok,'image/webp',0.82));
+      let blob=await new Promise(ok=>canvas.toBlob(ok,'image/webp',0.82));
+      if(!blob || blob.type!=='image/webp') {
+        try {
+          const {encoderPhoto}=await import('./encoder-photo.js');
+          blob=await encoderPhoto(ctx.getImageData(0,0,512,512));
+        } catch { throw new Error('La conversion de la photo a échoué. Vérifiez votre connexion puis réessayez.'); }
+      }
       if(!blob || blob.type!=='image/webp' || blob.size>524288) throw new Error('Impossible de préparer cette photo. Essayez une autre image.');
       return blob;
-    } finally {bitmap?.close();}
+    } finally {bitmap?.close?.();}
   }
   function formulaire() {
     const root=n('section','panneau photo-profil-form'); root.append(n('h3','','Ma photo de profil'));
