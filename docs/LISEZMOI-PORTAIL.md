@@ -161,7 +161,9 @@ La vérification du projet hébergé a confirmé huit clés étrangères vers `m
 
 ## Évolution gratuite : communauté, appels, réunions et parents
 
-**Préparée sur une branche distincte ; pas encore publiée ni appliquée à la base en service.** Ne rejouez pas les anciennes migrations. La nouvelle est `supabase/migrations/20261104143144_reseau_social_gratuit.sql`, à appliquer uniquement après accord du propriétaire, après les trois migrations existantes. Publier ensuite les fichiers statiques, avec le nouveau fichier **`js/communaute.js`**, sur le même site Netlify. Avant la migration, les nouveaux écrans indiquent qu’une mise à jour est nécessaire ; les écrans existants restent disponibles.
+**Mise en service du 4 novembre 2026 à 13 h 21 (Toronto)** : PR nº 6 fusionnée, migration `20261104143144_reseau_social_gratuit.sql` appliquée et enregistrée sur ACHUS. Les **10 fiches et 9 comptes** présents avant cette évolution sont conservés. Les cinq nouvelles tables ont RLS activée ; les appels ne sont pas lisibles anonymement, les liens familiaux ne sont pas inscriptibles directement et les états d’appel ne sont pas modifiables directement par le client. Version publiée : `9add8a6b5b1b89ef0448a949406aab075bddcf23`, déploiement Netlify `6aeb77ab5efb4ed2b39751e5`. Le HTML et les fichiers JS/CSS servis sur le domaine ont été comparés au dépôt. La recette avec de vrais participants audio/vidéo reste à faire.
+
+**Publiée sur le site existant après accord du propriétaire.** Ne rejouez pas les anciennes migrations. La nouvelle est `supabase/migrations/20261104143144_reseau_social_gratuit.sql`, à appliquer uniquement après accord du propriétaire, après les trois migrations existantes. Publier ensuite les fichiers statiques, avec le nouveau fichier **`js/communaute.js`**, sur le même site Netlify. Avant la migration, les nouveaux écrans indiquent qu’une mise à jour est nécessaire ; les écrans existants restent disponibles.
 
 ### Fait dans cette évolution
 
@@ -184,12 +186,12 @@ Les invitations ne sont reçues que lorsque le portail est ouvert : pas de notif
 
 ### Reste à faire et recette avant publication
 
-1. Relire et fusionner la pull request après validation. Obtenir l’accord du propriétaire avant d’appliquer **cette nouvelle migration** ; elle n’est pas appliquée automatiquement.
+1. **Fait** : accord obtenu, PR nº 6 fusionnée et nouvelle migration appliquée manuellement. Les anciennes migrations n’ont pas été rejouées.
 2. Avec un parent A, un parent B, deux enfants et un responsable : lier chaque parent à son enfant. Vérifier qu’A ne voit jamais les présences de l’enfant de B. Retirer le lien puis actualiser : l’accès doit disparaître. Un compte simplement déclaré Parent à l’inscription reste sans enfant tant que le bureau n’a pas vérifié le lien.
 3. Publier un texte, commenter, retirer sa contribution ; modérer une autre contribution avec le bureau. Vérifier au clavier et à 390 px, puis à 1280 px. Vérifier qu’un texte contenant `<script>` reste visible sans exécution.
 4. A invite B en audio, B accepte ; chacun ouvre la même salle Jitsi. Autoriser le microphone puis essayer la vidéo. Tester refus, annulation, expiration et fin manuelle. Un troisième membre, même du bureau, ne voit pas leur invitation. Essayer aussi un appel parent → bureau et vérifier qu’un parent ne peut pas inviter un enfant arbitraire.
 5. Programmer une réunion pour les parents seulement : un membre ordinaire ne doit pas la voir. Tester une réunion pour tous, puis son annulation. Tester le démarrage Jitsi, la salle d’attente/le mot de passe et un petit groupe sur téléphones avant un essai de 100 participants.
-6. Après accord : appliquer uniquement la nouvelle migration, puis publier les fichiers statiques. Valider les menus avec de vrais comptes ; aucune fiche réelle ne doit être supprimée pour la recette.
+6. **Publication faite** : nouvelle migration et fichiers statiques publiés sur le site existant. **À valider** : les menus et les échanges avec de vrais comptes ; aucune fiche réelle ne doit être supprimée pour la recette.
 
 Les commandes `bash scripts/test-migration.sh` et `npm run test:interface` couvrent les anciennes fonctions et les nouvelles. Les essais SQL appliquent trois fois la migration sociale (deux fois avant utilisation, une fois après), contrôlent RLS, usurpation, droits parents, messages, appels, modération et conservation. Le navigateur utilise un adaptateur local exécutant les requêtes sous RLS ; il ne contacte ni Supabase en service ni Jitsi. Les captures vont dans `test-results/`, ignoré par Git.
 
