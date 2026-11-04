@@ -295,3 +295,15 @@ button:focus-visible,summary:focus-visible,.table-wrap:focus-visible{outline:3px
     width:297mm !important;max-width:none !important;height:210mm !important;box-shadow:none !important;
   }
 }
+
+/* Communauté, appels et accès familial — mobile d’abord. */
+.social-pile { display: grid; gap: 16px; min-width: 0; }
+.social-carte { padding: 20px; border: 1px solid #dce1ea; border-radius: 16px; background: #fff; min-width: 0; }
+.social-carte h2 { font-size: 1.1rem; color: #0F2350; margin: 0 0 12px; overflow-wrap: anywhere; }
+.social-carte form { display: grid; gap: 12px; }
+.social-carte .champ { display: grid; gap: 6px; }
+.social-carte input, .social-carte textarea, .social-carte select { width: 100%; min-width: 0; box-sizing: border-box; }
+.social-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.social-texte { white-space: pre-wrap; overflow-wrap: anywhere; }
+.social-commentaire { border-left: 3px solid #4A5878; padding: 0 12px; }
+.social-carte .btn { white-space: normal; max-width: 100%; }

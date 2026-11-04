@@ -24,6 +24,12 @@ try {
   await run(nouvelle);
   await run(correction);
   await run('supabase/tests/04_conservation.sql');
+  const social = 'supabase/migrations/20261104143144_reseau_social_gratuit.sql';
+  await run(social);
+  await run(social);
+  await run('supabase/tests/05_reseau_social.sql');
+  await run(social);
+  await db.exec("DO $$ BEGIN ASSERT (SELECT count(*)=1 FROM public.publications); ASSERT (SELECT count(*)=1 FROM public.commentaires); ASSERT (SELECT count(*)=1 FROM public.appels); END $$;");
   console.log('MIGRATION_OK (Postgres embarqué, RLS et conservation vérifiées)');
 } catch (error) {
   console.error('ÉCHEC SQL :', error.code, error.message, error.where || '');

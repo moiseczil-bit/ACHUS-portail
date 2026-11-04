@@ -1,3 +1,4 @@
+import { creerCommunaute } from "./communaute.js";
 import { creerCollaboration } from "./collaboration.js";
 import {
   carteRecto, carteVerso, certificat, certificatAutorise, dateFR,
@@ -38,6 +39,8 @@ const collaboration = creerCollaboration({
     await afficher(id);
   }
 });
+
+const communaute = creerCommunaute({ client: () => supabase, profil: () => profil, estBureau, toast });
 
 const $ = (id) => document.getElementById(id);
 
@@ -591,6 +594,10 @@ async function pageAgendaAdmin() {
 }
 
 const TITRES = {
+  fil: ["Communauté ACHUS", "Publications et échanges entre membres"],
+  appels: ["Appels audio et vidéo", "Invitations privées et conversation sur Jitsi"],
+  reunions: ["Réunions en ligne", "Retrouver les membres et les responsables"],
+  famille: ["Espace parents", "Liens familiaux et suivi des présences"],
   accueil: ["Accueil", "Association Corps d'Honneur Universel de Santo"],
   profil: ["Mon profil", "Vos informations, votre photo, votre carte"],
   agenda: ["Agenda", "Samedi 9 h et 18 mai"],
@@ -620,6 +627,7 @@ async function afficher(id) {
     if (id === "accueil") node = await pageAccueil();
     else if (id === "profil") node = await pageProfil();
     else if (id === "agenda") node = await pageAgenda();
+    else if (["fil", "appels", "reunions", "famille"].includes(id)) node = await communaute[id]();
     else if (id === "presences") node = await collaboration.presences();
     else if (id === "messages") node = await collaboration.messages();
     else if (id === "presences-admin") node = await collaboration.presencesAdmin();
@@ -633,6 +641,7 @@ async function afficher(id) {
     contenu.replaceChildren(node);
     contenu.setAttribute("aria-busy", "false");
     collaboration.badgeMessages();
+    communaute.badgeAppels();
   } catch (e) {
     if (generation === affichageGeneration) {
       contenu.replaceChildren(el("div", "msg err", texteErreur(e)));
@@ -653,6 +662,11 @@ function construireNav() {
   const items = [
     ["Principal", [["accueil", "Accueil"], ["profil", "Mon profil"], ["agenda", "Agenda"], ["presences", "Mes présences"]]]
   ];
+  if (["actif", "honoraire"].includes(profil?.statut)) {
+    items[0][1].push(["fil", "Communauté"], ["reunions", "Réunions en ligne"]);
+    if (profil.statut === "actif") items[0][1].push(["appels", "Appels audio et vidéo"]);
+    if (profil.type_compte === "parent" || estBureau(profil)) items[0][1].push(["famille", "Espace parents"]);
+  }
   if (profil?.statut === "actif") items[0][1].push(["messages", "Messagerie"]);
   if (["actif", "honoraire"].includes(profil?.statut) && !estBureau(profil)) items[0][1].push(["annonces", "Annonces du bureau"]);
   if (estBureau(profil)) {
@@ -676,6 +690,10 @@ function construireNav() {
         pastille.id = "pastille";
         pastille.style.marginLeft = "8px";
         b.append(pastille);
+      }
+      if (id === "appels") {
+        const badge = el("span", "badge b-en_attente", "0");
+        badge.id = "appels-entrants"; badge.hidden = true; b.append(badge);
       }
       if (id === "messages") {
         const badge = el("span", "badge b-en_attente", "0");
@@ -704,7 +722,7 @@ async function entrer() {
   await afficher("accueil");
   clearInterval(messagesTimer);
   messagesTimer = setInterval(() => {
-    if (session && document.visibilityState === "visible") collaboration.badgeMessages();
+    if (session && document.visibilityState === "visible") { collaboration.badgeMessages(); communaute.badgeAppels(); }
   }, 60000);
   if (estBureau(profil)) {
     const { count, error } = await supabase.from("membres").select("id", { count: "exact", head: true }).eq("statut", "en_attente");

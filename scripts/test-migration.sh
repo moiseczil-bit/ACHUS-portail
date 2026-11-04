@@ -43,4 +43,10 @@ done
 "${PSQL[@]}" -d "$DB" -f "$ROOT/supabase/migrations/20261104135930_correction_suppression_dependances.sql"
 "${PSQL[@]}" -d "$DB" -f "$ROOT/supabase/tests/04_conservation.sql"
 
+SOCIAL="$ROOT/supabase/migrations/20261104143144_reseau_social_gratuit.sql"
+"${PSQL[@]}" -d "$DB" -f "$SOCIAL"
+"${PSQL[@]}" -d "$DB" -f "$SOCIAL"
+"${PSQL[@]}" -d "$DB" -f "$ROOT/supabase/tests/05_reseau_social.sql"
+"${PSQL[@]}" -d "$DB" -f "$SOCIAL"
+"${PSQL[@]}" -d "$DB" -c 'DO $$ BEGIN ASSERT (SELECT count(*)=1 FROM public.publications); ASSERT (SELECT count(*)=1 FROM public.commentaires); ASSERT (SELECT count(*)=1 FROM public.appels); END $$;'
 echo "MIGRATION_OK"

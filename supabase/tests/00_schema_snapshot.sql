@@ -15,6 +15,8 @@ BEGIN
 END $$;
 
 CREATE SCHEMA IF NOT EXISTS auth;
+-- Droit standard Supabase : les déclencheurs invoker peuvent appeler auth.uid().
+GRANT USAGE ON SCHEMA auth TO anon, authenticated;
 
 CREATE TABLE IF NOT EXISTS auth.users (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
