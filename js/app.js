@@ -1,3 +1,4 @@
+import { creerPhotosProfil } from "./photos-profil.js";
 import { creerCommunaute } from "./communaute.js";
 import { creerCollaboration } from "./collaboration.js";
 import {
@@ -40,7 +41,11 @@ const collaboration = creerCollaboration({
   }
 });
 
-const communaute = creerCommunaute({ client: () => supabase, profil: () => profil, estBureau, toast });
+const photosProfil = creerPhotosProfil({ client: () => supabase, profil: () => profil, toast,
+  actualiser: async () => { if (page === "profil" && session) await afficher("profil"); }
+});
+const communaute = creerCommunaute({ client: () => supabase, profil: () => profil, estBureau, toast,
+  avatar: m => photosProfil.avatar(m), avatarGrand: m => photosProfil.avatar(m, true), ouvrirProfil: () => afficher("profil") });
 
 const $ = (id) => document.getElementById(id);
 
@@ -260,7 +265,11 @@ async function pageAccueil() {
   const ev = await chargerEvenements();
   droit.append(blocAgenda(ev));
   grille.append(gauche, droit);
-  root.append(grille, contactsNode());
+  if (["actif", "honoraire"].includes(profil.statut)) {
+    grille.className = "accueil-aside";
+    const mur = el("div", "accueil-mur");
+    mur.append(await communaute.fil(), grille); root.append(mur, contactsNode());
+  } else root.append(grille, contactsNode());
   return root;
 }
 
@@ -346,6 +355,30 @@ async function pageProfil() {
   } else {
     docs.append(el("p", "meta", "Le certificat est disponible pour les membres actifs ou honoraires qui ont un numéro."));
   }
+  if (["actif", "honoraire"].includes(profil.statut) && profil.type_compte !== "parent") {
+    const gradeForm = el("form", "panneau");
+    gradeForm.style.marginBottom = "12px";
+    gradeForm.append(el("h3", null, "Mon grade"));
+    const grade = input({ value: profil.grade || "" });
+    grade.required = true; grade.maxLength = 80; grade.placeholder = "Ex. : Sergent";
+    gradeForm.append(champ("Grade à afficher sur ma carte", grade),
+      el("p", "meta", "Indiquez votre grade ACHUS. Après enregistrement, votre carte et votre certificat sont actualisés. Ce choix ne change pas vos droits dans le portail."));
+    const enregistrerGrade = el("button", "btn btn-navy", "Enregistrer mon grade");
+    enregistrerGrade.type = "submit"; gradeForm.append(enregistrerGrade);
+    gradeForm.onsubmit = async e => {
+      e.preventDefault(); enregistrerGrade.disabled = true;
+      try {
+        const { error } = await supabase.rpc("modifier_mon_grade", { p_grade: grade.value.trim() });
+        if (error) throw error;
+        await chargerProfil();
+        if (gradeForm.isConnected && page === "profil") await afficher("profil");
+        toast("Grade enregistré. Votre carte est actualisée.");
+      } catch (e) { toast(texteErreur(e), "error"); }
+      finally { enregistrerGrade.disabled = false; }
+    };
+    root.append(gradeForm);
+  }
+  if (["actif", "honoraire"].includes(profil.statut)) root.prepend(photosProfil.formulaire());
   root.append(form, photoForm, lecture, docs);
   return root;
 }
@@ -663,7 +696,7 @@ function construireNav() {
     ["Principal", [["accueil", "Accueil"], ["profil", "Mon profil"], ["agenda", "Agenda"], ["presences", "Mes présences"]]]
   ];
   if (["actif", "honoraire"].includes(profil?.statut)) {
-    items[0][1].push(["fil", "Communauté"], ["reunions", "Réunions en ligne"]);
+    items[0][1].push(["fil", "Ma communauté"], ["reunions", "Réunions en ligne"]);
     if (profil.statut === "actif") items[0][1].push(["appels", "Appels audio et vidéo"]);
     if (profil.type_compte === "parent" || estBureau(profil)) items[0][1].push(["famille", "Espace parents"]);
   }
@@ -884,6 +917,15 @@ async function demarrer() {
     await apercu();
     return;
   }
+  document.querySelectorAll("[data-mot-de-passe]").forEach(bouton => {
+    bouton.onclick = () => {
+      const controle = document.getElementById(bouton.dataset.motDePasse);
+      const visible = controle.type === "password";
+      controle.type = visible ? "text" : "password";
+      bouton.textContent = visible ? "Masquer le mot de passe" : "Afficher le mot de passe";
+      bouton.setAttribute("aria-pressed", String(visible));
+    };
+  });
   lierAuth();
   if (location.hash === "#adhesion") montrerAdhesion();
   const { createClient } = await import("https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.4/+esm");

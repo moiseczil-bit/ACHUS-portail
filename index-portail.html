@@ -30,6 +30,7 @@
         <div id="login-msg" class="msg" hidden></div>
         <label class="champ"><span>Adresse e-mail</span><input id="login-email" type="email" autocomplete="username" required placeholder="exemple@email.com"></label>
         <label class="champ"><span>Mot de passe</span><input id="login-password" type="password" autocomplete="current-password" required placeholder="Votre mot de passe"></label>
+        <button type="button" class="btn btn-ghost btn-sm voir-mot-de-passe" data-mot-de-passe="login-password" aria-controls="login-password" aria-pressed="false">Afficher le mot de passe</button>
         <button class="btn btn-navy" type="submit">Se connecter</button>
       </form>
       <form id="form-adhesion" hidden>
@@ -39,6 +40,7 @@
         <label class="champ"><span>Téléphone</span><input id="reg-tel" type="tel" autocomplete="tel" required placeholder="+509 …"></label>
         <label class="champ"><span>Adresse e-mail</span><input id="reg-email" type="email" autocomplete="email" required placeholder="exemple@email.com"></label>
         <label class="champ"><span>Mot de passe</span><input id="reg-password" type="password" autocomplete="new-password" required minlength="6" placeholder="6 caractères minimum"></label>
+        <button type="button" class="btn btn-ghost btn-sm voir-mot-de-passe" data-mot-de-passe="reg-password" aria-controls="reg-password" aria-pressed="false">Afficher le mot de passe</button>
         <label class="champ"><span>Quartier</span><input id="reg-quartier" required placeholder="Santo 13"></label>
         <label class="champ"><span>Programme d'intérêt</span><input id="reg-programme" placeholder="Leadership, musique, discipline…"></label>
         <label class="champ"><span>Motivation</span><textarea id="reg-motivation" placeholder="Pourquoi souhaitez-vous rejoindre l'ACHUS ?"></textarea></label>
