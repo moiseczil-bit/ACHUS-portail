@@ -5,7 +5,7 @@ Slogan : « Lajenès se lavni peyi an ».
 
 Ce document est pour la personne qui gère le site, pas pour un développeur.
 
-**Extension messagerie / présences / registre (4 novembre 2026)** : le code et les migrations sont proposés dans une branche séparée. La nouvelle migration ne doit être appliquée en production qu’après accord du propriétaire. Les tests utilisent une base jetable, jamais le projet Supabase en service.
+**Mise en service du 4 novembre 2026** : les migrations `messagerie_presences_registre` et `correction_suppression_dependances` sont appliquées sur ACHUS. Les 6 fiches et les 5 comptes existants sont conservés. La version du commit `f430855d3aa8a31892d01e12bcf442d206432262` est publiée sur le site Netlify existant, déploiement `6aeb3d4191f8a708de90d088`. Les fichiers HTML/JS/CSS servis sur le domaine ont été comparés au dépôt. Le menu **Messagerie** apparaît après connexion pour les comptes au statut **Actif**.
 
 ## Ce qui a été fait
 
@@ -28,13 +28,13 @@ Ce document est pour la personne qui gère le site, pas pour un développeur.
 - **Suppression définitive** : uniquement le président, uniquement après retrait ou suspension. Première confirmation par case à cocher ; deuxième confirmation en recopiant le numéro et « SUPPRIMER DÉFINITIVEMENT ». La fiche, ses messages et ses présences sont supprimés. Le compte de connexion Auth reste sans fiche et sans droit aux membres ; le fichier photo éventuel reste dans le stockage privé et demande un nettoyage distinct par le propriétaire. Le numéro réservé et les traces administratives restent conservés. Personne ne peut retirer sa propre fiche ou celle du président.
 - **Journal du bureau** : lecture seule, date/heure, numéro du responsable, membre concerné et action. Les changements de fiche, retraits, validations de présence et suppressions y sont tracés. L’attribution des rôles est réservée au président.
 
-## Ce qui reste à faire (par vous)
+## Suivi après publication
 
-1. Relire et approuver la pull request. Comparer à nouveau `main` si Cursor, Claude ou Grok y a ajouté des changements entre-temps ; ne pas remplacer leur travail et ne pas modifier une ancienne migration déjà appliquée.
-2. Après accord explicite, vérifier que la refonte `20261104120000_portail_refonte.sql` est déjà installée, puis appliquer **uniquement** la nouvelle migration `20261104124515_messagerie_presences_registre.sql`. Faire un export de sauvegarde avant toute intervention sur la base en service. Ne pas rejouer l’ancienne migration après la nouvelle : elle redéfinirait certaines fonctions.
-3. Tester les trois rôles sur un environnement de recette. Le contrôle direct du schéma Supabase en service n’a pas été possible pendant ce travail : les deux connexions ont refusé l’accès. Les vérifications SQL utilisent l’instantané du dépôt ; les tests navigateur passent par un adaptateur local, pas par le service PostgREST hébergé.
-4. Publier sur le site Netlify existant **luxury-snickerdoodle-b2bd70**, après la migration approuvée. Aucun déploiement n’est déclenché par les scripts de test.
-5. Vérifier les réglages Auth et les deux secrets du keep-alive s’ils ne sont pas déjà configurés. Le président peut donner le rôle « Bureau » depuis **Registre des membres** → **Gérer**.
+1. **Fait** : pull requests #3 et #4 fusionnées, schéma hébergé vérifié, deux migrations appliquées et enregistrées. La refonte initiale n’a pas été rejouée.
+2. **Fait** : RLS vérifiée sur les quatre nouvelles tables, lecture anonyme des messages refusée, contenu des messages non modifiable et journal non inscriptible par le client. Les publications liées à une fiche supprimée restent conservées.
+3. **Fait** : publication sur **luxury-snickerdoodle-b2bd70**, domaine **portail.achussantohaiti.com**. Le ZIP contient uniquement les fichiers statiques ; `index.html` est une copie de `index-portail.html` pour l’accueil. Aucun secret n’est ajouté.
+4. **À valider avec les vrais comptes** : connexion dans le portail et affichage des menus selon les rôles. Les échanges et suppressions ont été testés sur une base jetable ; aucun message n’a été envoyé à un vrai membre et aucune fiche réelle n’a été supprimée pendant la recette.
+5. Pour les prochaines évolutions faites avec Cursor, Claude ou Grok, relire `main` et les migrations appliquées avant toute modification. La publication reste manuelle ; une modification GitHub seule ne met pas le site à jour.
 
 Le live, les votes et la galerie de groupe ne sont pas refaits dans cet écran. Les tables existent et sont protégées. On pourra les rebrancher plus tard.
 
