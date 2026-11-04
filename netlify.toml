@@ -1,0 +1,8 @@
+# Site statique : aucun build. Netlify publie le dossier tel quel.
+[build]
+  publish = "."
+
+[[redirects]]
+  from = "/"
+  to = "/index-portail.html"
+  status = 200
