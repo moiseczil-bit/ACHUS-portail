@@ -1,0 +1,13 @@
+{
+  "name": "achus-portail-tests",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "bash scripts/test-migration.sh",
+    "test:interface": "node scripts/test-interface.mjs"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "0.5.15",
+    "playwright": "1.62.1"
+  }
+}

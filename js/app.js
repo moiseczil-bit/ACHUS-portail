@@ -1,3 +1,4 @@
+import { creerCollaboration } from "./collaboration.js";
 import {
   carteRecto, carteVerso, certificat, certificatAutorise, dateFR,
   telechargerCartePng, telechargerCartePdf, telechargerCertificatPdf, imprimerCertificat,
@@ -25,6 +26,18 @@ let supabase = null;
 let session = null;
 let profil = null;
 let page = "accueil";
+let affichageGeneration = 0;
+let messagesTimer = null;
+const collaboration = creerCollaboration({
+  client: () => supabase, profil: () => profil, estBureau, libelleStatut, libelleRole,
+  toast, sauverBlob, ouvrirDocuments,
+  actualiser: async (id) => {
+    await chargerProfil();
+    remplirQui();
+    construireNav();
+    await afficher(id);
+  }
+});
 
 const $ = (id) => document.getElementById(id);
 
@@ -372,73 +385,6 @@ async function pageAgenda() {
   return root;
 }
 
-async function pagePresences() {
-  const root = el("div");
-  if (!profil) return root;
-  const { data, error } = await supabase.from("presences").select("*").eq("membre_id", profil.id).order("created_at", { ascending: false });
-  if (error) {
-    root.append(el("div", "msg err", texteErreur(error)));
-    return root;
-  }
-  if (!data || !data.length) root.append(el("p", "meta", "Aucune présence enregistrée."));
-  (data || []).forEach((p) => {
-    const c = el("article", "carte-info");
-    c.append(el("h3", null, p.type_activite || "Activité"), el("p", "meta", (p.date_session || "").toString()));
-    root.append(c);
-  });
-  if (estBureau(profil)) root.append(await formulairePresence());
-  return root;
-}
-
-async function formulairePresence() {
-  const box = el("form", "panneau");
-  box.style.marginTop = "16px";
-  box.append(el("h3", null, "Marquer les présences"));
-  const type = input({ value: "Réunion hebdomadaire" });
-  const date = input({ type: "date", value: new Date().toISOString().slice(0, 10) });
-  const { data, error } = await supabase.from("membres").select("id,prenom,nom,numero_membre,statut").in("statut", ["actif", "honoraire"]).order("nom");
-  if (error) {
-    box.append(el("div", "msg err", texteErreur(error)));
-    return box;
-  }
-  const coches = [];
-  (data || []).forEach((m) => {
-    const id = "pr-" + m.id;
-    const lab = el("label", "check");
-    const cb = document.createElement("input");
-    cb.type = "checkbox";
-    cb.id = id;
-    lab.append(cb, (m.prenom || "") + " " + (m.nom || "") + (m.numero_membre ? " · " + m.numero_membre : ""));
-    box.append(lab);
-    coches.push({ cb, id: m.id });
-  });
-  box.append(champ("Activité", type), champ("Date", date));
-  const go = el("button", "btn btn-navy", "Enregistrer les présents");
-  go.type = "submit";
-  box.append(go);
-  box.onsubmit = async (e) => {
-    e.preventDefault();
-    const choisis = coches.filter((c) => c.cb.checked);
-    if (!choisis.length) {
-      toast("Cochez au moins un membre.", "error");
-      return;
-    }
-    const rows = choisis.map((c) => ({
-      membre_id: c.id,
-      type_activite: type.value.trim() || "Réunion",
-      date_session: date.value || null
-    }));
-    const ins = await supabase.from("presences").insert(rows);
-    if (ins.error) {
-      toast(texteErreur(ins.error), "error");
-      return;
-    }
-    toast(choisis.length + " présence(s) enregistrée(s).");
-    await afficher("presences");
-  };
-  return box;
-}
-
 function carteDemande(m, apercu) {
   const c = el("article", "demande");
   c.append(el("h3", null, ((m.prenom || "") + " " + (m.nom || "")).trim() || "Sans nom"));
@@ -504,113 +450,6 @@ async function pageDemandes(apercu) {
   return root;
 }
 
-async function pageRegistre() {
-  const root = el("div");
-  const filtre = select([["", "Tous les statuts"], ...STATUTS], "");
-  const bar = el("div", "ligne-btns");
-  bar.style.marginBottom = "12px";
-  const csv = el("button", "btn btn-ghost btn-sm", "Exporter CSV");
-  bar.append(filtre, csv);
-  const zone = el("div");
-  root.append(bar, zone);
-  const dessiner = async () => {
-    let q = supabase.from("membres").select("*").order("nom", { ascending: true });
-    if (filtre.value) q = q.eq("statut", filtre.value);
-    const { data, error } = await q;
-    if (error) {
-      zone.replaceChildren(el("div", "msg err", texteErreur(error)));
-      return;
-    }
-    zone.replaceChildren(tableauMembres(data || []));
-    csv.onclick = () => exporterCsv(data || []);
-  };
-  filtre.onchange = dessiner;
-  await dessiner();
-  return root;
-}
-
-function tableauMembres(rows) {
-  const wrap = el("div", "table-wrap");
-  const table = document.createElement("table");
-  const thead = document.createElement("thead");
-  const hr = document.createElement("tr");
-  ["N°", "Nom", "Grade", "Fonction", "Statut", "Rôle", ""].forEach((h) => hr.append(el("th", null, h)));
-  thead.append(hr);
-  const tb = document.createElement("tbody");
-  rows.forEach((m) => {
-    const tr = document.createElement("tr");
-    tr.append(el("td", null, m.numero_membre || "—"));
-    const nom = el("td");
-    nom.append(el("strong", null, ((m.prenom || "") + " " + (m.nom || "")).trim()));
-    nom.append(el("div", "meta", (m.email || "") + (m.telephone ? " · " + m.telephone : "")));
-    if (m.quartier) nom.append(el("div", "meta", m.quartier));
-    const grade = input({ value: m.grade || "" });
-    const fonction = input({ value: m.fonction || "" });
-    const statut = select(STATUTS, m.statut);
-    const role = select(ROLES, m.role || "membre");
-    const actions = el("td");
-    const sauver = el("button", "btn btn-navy btn-sm", "Enregistrer");
-    sauver.onclick = () => sauverMembre(m, { grade, fonction, statut, role });
-    actions.append(sauver);
-    if (m.statut === "actif" || m.statut === "honoraire") {
-      const voir = el("button", "btn btn-ghost btn-sm", "Carte / certificat");
-      voir.style.marginTop = "6px";
-      voir.onclick = () => ouvrirDocuments(m);
-      actions.append(voir);
-    }
-    const tdG = document.createElement("td"); tdG.append(grade);
-    const tdF = document.createElement("td"); tdF.append(fonction);
-    const tdS = document.createElement("td"); tdS.append(statut);
-    const tdR = document.createElement("td"); tdR.append(role);
-    tr.append(nom, tdG, tdF, tdS, tdR, actions);
-    tb.append(tr);
-  });
-  table.append(thead, tb);
-  wrap.append(table);
-  return wrap;
-}
-
-async function sauverMembre(m, champs) {
-  const grade = champs.grade.value.trim();
-  const fonction = champs.fonction.value.trim();
-  if (!grade || !fonction) {
-    toast("Le grade et la fonction sont du texte, pas un nombre.", "error");
-    return;
-  }
-  const { error } = await supabase.from("membres").update({
-    grade,
-    fonction,
-    role: champs.role.value
-  }).eq("id", m.id);
-  if (error) {
-    toast(texteErreur(error), "error");
-    return;
-  }
-  const doitNumero = !m.numero_membre && (champs.statut.value === "actif" || champs.statut.value === "honoraire");
-  if (champs.statut.value !== m.statut || doitNumero) {
-    const rpc = await supabase.rpc("changer_statut", { p_id: m.id, p_statut: champs.statut.value });
-    if (rpc.error) {
-      toast(texteErreur(rpc.error), "error");
-      return;
-    }
-  }
-  toast("Fiche mise à jour.");
-  await afficher("registre");
-}
-
-function exporterCsv(rows) {
-  const cols = ["numero_membre", "prenom", "nom", "email", "telephone", "quartier", "grade", "fonction", "statut", "role", "date_adhesion", "date_validite"];
-  const tete = ["Numéro", "Prénom", "Nom", "E-mail", "Téléphone", "Quartier", "Grade", "Fonction", "Statut", "Rôle", "Date adhésion", "Date validité"];
-  const esc = (v) => {
-    const s = v == null ? "" : String(v);
-    return /[";\n\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
-  };
-  const lignes = [tete.join(";")].concat(rows.map((m) => cols.map((c) => esc(m[c])).join(";")));
-  const blob = new Blob(["\uFEFF" + lignes.join("\r\n")], { type: "text/csv;charset=utf-8" });
-  sauverBlob(blob, "registre-achus.csv");
-  toast("Fichier CSV téléchargé (ouvrable dans Excel).");
-}
-
 function sauverBlob(blob, nom) {
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
@@ -672,6 +511,7 @@ async function pageAnnonces() {
   };
   const { data, error } = await supabase.from("annonces").select("*").order("created_at", { ascending: false });
   if (error) liste.append(el("div", "msg err", texteErreur(error)));
+  if (!error && !data?.length) liste.append(el("p", "meta", "Aucune annonce publiée pour le moment."));
   (data || []).forEach((a) => {
     const c = el("article", "carte-info");
     c.append(el("h3", null, a.titre), el("p", null, a.contenu || ""), el("p", "meta", a.created_at ? dateFR(a.created_at) : ""));
@@ -681,10 +521,11 @@ async function pageAnnonces() {
       if (res.error) toast(texteErreur(res.error), "error");
       else { toast("Annonce supprimée."); await afficher("annonces"); }
     };
-    c.append(del);
+    if (estBureau(profil)) c.append(del);
     liste.append(c);
   });
-  root.append(form, liste);
+  if (estBureau(profil)) root.append(form);
+  root.append(liste);
   return root;
 }
 
@@ -753,7 +594,10 @@ const TITRES = {
   accueil: ["Accueil", "Association Corps d'Honneur Universel de Santo"],
   profil: ["Mon profil", "Vos informations, votre photo, votre carte"],
   agenda: ["Agenda", "Samedi 9 h et 18 mai"],
-  presences: ["Présences", "Historique"],
+  presences: ["Mes présences", "Déclaration et suivi des validations"],
+  messages: ["Messagerie", "Échanges privés entre membres actifs"],
+  "presences-admin": ["Valider les présences", "Par réunion et par membre"],
+  journal: ["Journal du bureau", "Historique des actions administratives"],
   demandes: ["Demandes", "Adhésions en attente"],
   registre: ["Registre", "Statuts, grades, export"],
   annonces: ["Annonces", "Messages aux membres"],
@@ -761,27 +605,39 @@ const TITRES = {
 };
 
 async function afficher(id) {
+  const generation = ++affichageGeneration;
+  if (["demandes", "registre", "agenda-admin", "presences-admin", "journal"].includes(id) && !estBureau(profil)) id = "accueil";
   page = id;
   document.querySelectorAll(".nav-btn").forEach((b) => b.classList.toggle("actif", b.dataset.page === id));
   const t = TITRES[id] || [id, ""];
   $("titre-page").textContent = t[0];
   $("sous-titre").textContent = t[1];
   const contenu = $("contenu");
+  contenu.setAttribute("aria-busy", "true");
   contenu.replaceChildren(el("p", "meta", "Chargement…"));
   try {
     let node;
     if (id === "accueil") node = await pageAccueil();
     else if (id === "profil") node = await pageProfil();
     else if (id === "agenda") node = await pageAgenda();
-    else if (id === "presences") node = await pagePresences();
+    else if (id === "presences") node = await collaboration.presences();
+    else if (id === "messages") node = await collaboration.messages();
+    else if (id === "presences-admin") node = await collaboration.presencesAdmin();
+    else if (id === "journal") node = await collaboration.journal();
     else if (id === "demandes") node = await pageDemandes(false);
-    else if (id === "registre") node = await pageRegistre();
+    else if (id === "registre") node = await collaboration.registre();
     else if (id === "annonces") node = await pageAnnonces();
     else if (id === "agenda-admin") node = await pageAgendaAdmin();
     else node = el("p", null, "Page inconnue.");
+    if (generation !== affichageGeneration) return;
     contenu.replaceChildren(node);
+    contenu.setAttribute("aria-busy", "false");
+    collaboration.badgeMessages();
   } catch (e) {
-    contenu.replaceChildren(el("div", "msg err", texteErreur(e)));
+    if (generation === affichageGeneration) {
+      contenu.replaceChildren(el("div", "msg err", texteErreur(e)));
+      contenu.setAttribute("aria-busy", "false");
+    }
   }
 }
 
@@ -795,12 +651,16 @@ function construireNav() {
   const nav = $("nav");
   nav.replaceChildren();
   const items = [
-    ["Principal", [["accueil", "Accueil"], ["profil", "Mon profil"], ["agenda", "Agenda"], ["presences", "Présences"]]]
+    ["Principal", [["accueil", "Accueil"], ["profil", "Mon profil"], ["agenda", "Agenda"], ["presences", "Mes présences"]]]
   ];
+  if (profil?.statut === "actif") items[0][1].push(["messages", "Messagerie"]);
+  if (["actif", "honoraire"].includes(profil?.statut) && !estBureau(profil)) items[0][1].push(["annonces", "Annonces du bureau"]);
   if (estBureau(profil)) {
     items.push(["Bureau", [
       ["demandes", "Demandes"],
-      ["registre", "Registre"],
+      ["registre", "Registre des membres"],
+      ["presences-admin", "Valider les présences"],
+      ["journal", "Journal du bureau"],
       ["annonces", "Annonces"],
       ["agenda-admin", "Gérer l'agenda"]
     ]]);
@@ -816,6 +676,12 @@ function construireNav() {
         pastille.id = "pastille";
         pastille.style.marginLeft = "8px";
         b.append(pastille);
+      }
+      if (id === "messages") {
+        const badge = el("span", "badge b-en_attente", "0");
+        badge.id = "non-lus";
+        badge.hidden = true;
+        b.append(badge);
       }
       b.onclick = () => afficher(id);
       nav.append(b);
@@ -836,6 +702,10 @@ async function entrer() {
   remplirQui();
   construireNav();
   await afficher("accueil");
+  clearInterval(messagesTimer);
+  messagesTimer = setInterval(() => {
+    if (session && document.visibilityState === "visible") collaboration.badgeMessages();
+  }, 60000);
   if (estBureau(profil)) {
     const { count, error } = await supabase.from("membres").select("id", { count: "exact", head: true }).eq("statut", "en_attente");
     const pastille = $("pastille");
@@ -844,6 +714,12 @@ async function entrer() {
 }
 
 async function sortir() {
+  clearInterval(messagesTimer);
+  ++affichageGeneration;
+  document.querySelectorAll("dialog.dialog-portail").forEach(d => d.close());
+  $("contenu").replaceChildren();
+  $("modal").hidden = true;
+  $("modal").replaceChildren();
   if (supabase) await supabase.auth.signOut();
   session = null;
   profil = null;

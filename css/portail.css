@@ -142,6 +142,41 @@ td input,td select{min-height:40px;width:100%;border:1px solid #D5DCEC;border-ra
 
 .doc-outils{display:flex;flex-wrap:wrap;gap:8px;margin:8px 0 14px}
 
+/* Messagerie, registre et présences : mêmes couleurs et police que le portail. */
+.main{min-width:0}
+.espace-collaboration{display:grid;grid-template-columns:minmax(0,1fr);gap:16px;min-width:0}
+.espace-collaboration>*{min-width:0}
+.espace-collaboration h3{margin:0;color:var(--navy)}
+.filtres{display:grid;gap:10px;grid-template-columns:minmax(0,1fr)}
+.filtres .champ{margin:0;min-width:0}
+.filtres .btn{align-self:end;width:auto}
+.liste-messages{display:grid;gap:12px}
+.message{display:grid;gap:10px;min-width:0}
+.message p{margin:0}
+.message-nouveau{border-left:4px solid var(--red)}
+.message .badge{justify-self:start}
+.texte-message{white-space:pre-wrap;overflow-wrap:anywhere}
+.dialog-portail{
+  width:calc(100% - 24px);max-width:660px;max-height:90dvh;
+  overflow:auto;border:1px solid var(--line);border-radius:var(--radius);
+  color:var(--ink);padding:20px;background:var(--card);box-shadow:var(--shadow);
+}
+.dialog-portail::backdrop{background:rgba(15,35,80,.55)}
+.dialog-titre{align-items:start;justify-content:space-between;margin-bottom:16px}
+.dialog-titre h3{margin:0;flex:1;min-width:0;color:var(--navy)}
+.dialog-portail .panneau{margin-bottom:16px}
+.table-collaboration{min-width:980px}
+.table-collaboration td{overflow-wrap:anywhere;min-width:110px}
+.table-collaboration td:first-child{white-space:nowrap}
+.table-collaboration td:last-child .btn{white-space:nowrap}
+.table-collaboration td:nth-child(2){min-width:160px}
+.espace-collaboration .table-wrap{max-width:100%;margin-top:10px}
+.nav-btn .badge{margin-left:8px}
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+button:focus-visible,summary:focus-visible,.table-wrap:focus-visible{outline:3px solid var(--red);outline-offset:3px}
+@media(min-width:640px){.filtres{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(min-width:1100px){.filtres{grid-template-columns:repeat(3,minmax(0,1fr))}}
+
 /* —— Carte 85,6 × 54 mm —— */
 .doc-carte{
   width:min(100%,85.6mm);aspect-ratio:85.6/54;container-type:size;
