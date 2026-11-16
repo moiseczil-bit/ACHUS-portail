@@ -38,7 +38,8 @@ for (const file of ['supabase/tests/00_schema_snapshot.sql', 'supabase/tests/01_
   'supabase/migrations/20261104135930_correction_suppression_dependances.sql',
   'supabase/migrations/20261104143144_reseau_social_gratuit.sql',
   'supabase/migrations/20261104183055_grade_personnel.sql',
-  'supabase/migrations/20261104184248_photos_profil_communaute.sql']) await db.exec(await readFile(resolve(root, file), 'utf8'));
+  'supabase/migrations/20261104184248_photos_profil_communaute.sql',
+  'supabase/migrations/20261116154208_grade_reserve_bureau.sql']) await db.exec(await readFile(resolve(root, file), 'utf8'));
 await db.query('INSERT INTO auth.users(id,email,raw_user_meta_data) VALUES ($1,$2,$3),($4,$5,$6)',
   [PAUL, 'paul@example.ht', { prenom: 'Paul', nom: 'Joseph' }, ANNE, 'anne@example.ht', { prenom: 'Anne', nom: 'Louis' }]);
 await db.query("SELECT set_config('request.jwt.claim.sub',$1,false)", [PRESIDENT]);
@@ -83,7 +84,7 @@ export function createClient() {
   const user = {id:localStorage.getItem('achus-test-user'),email:'test@example.ht'};
   return { from: table=>new Requete(table), rpc:(name,params={})=>new Requete(null,name,params),
     storage:{from:bucket=>({createSignedUrl:path=>storageRequest('sign',bucket,path),upload:(path,file)=>storageRequest('upload',bucket,path,file),remove:paths=>storageRequest('remove',bucket,paths[0])})},
-    auth:{getSession:async()=>({data:{session:{user}}}),signOut:async()=>({error:null})} };
+    auth:{getSession:async()=>({data:{session:user.id?{user}:null}}),signOut:async()=>({error:null})} };
 }
 window.supabase={createClient};`;
 const tables = new Set(['membres', 'messages', 'presences_evenements', 'presences', 'evenements', 'annonces', 'historique_statuts', 'journal_admin', 'publications', 'commentaires', 'liens_familiaux', 'appels', 'reunions']);
@@ -201,6 +202,7 @@ try {
 
   console.log('→ connexion avec le véritable SDK local, démarrage lent, erreur, succès et session restaurée');
   const reel=await browser.newContext({viewport:{width:390,height:844},locale:'fr-HT'});
+  await reel.routeWebSocket('wss://**/*', socket => socket.close());
   const connexion=await reel.newPage();
   connexion.on('pageerror',e=>erreurs.push(e.message));
   let debloquerSdk;const sdkAttente=new Promise(ok=>debloquerSdk=ok);
@@ -305,15 +307,27 @@ try {
   await membre.waitForFunction(e=>!e.isConnected,ancienFormPhoto);
   await membre.locator('.photo-profil-form .avatar-profil img').waitFor();
 
-  await membre.getByLabel('Grade à afficher sur ma carte', { exact: true }).fill('Sergent-chef');
-  await membre.getByRole('button', { name: 'Enregistrer mon grade', exact: true }).click();
-  await membre.getByText('Grade enregistré. Votre carte est actualisée.', { exact: true }).waitFor();
-  assert.equal(await membre.locator('.doc-carte').getByText('SERGENT-CHEF', { exact: true }).count(), 1);
+  assert.equal(await membre.getByRole('button', { name: 'Enregistrer mon grade', exact: true }).count(), 0);
+  await membre.getByText('Votre grade est attribué par l’administration. Il apparaît automatiquement sur votre carte et votre certificat.', { exact: true }).waitFor();
+  const gradeAdmin = await pagePour(PRESIDENT);
+  await nav(gradeAdmin, 'registre');
+  await gradeAdmin.getByLabel('Rechercher', { exact: true }).fill('Paul');
+  await gradeAdmin.getByRole('button', { name: 'Gérer', exact: true }).click();
+  await gradeAdmin.getByRole('textbox', { name: 'Grade', exact: true }).fill('Sergent-chef');
+  await gradeAdmin.getByRole('textbox', { name: 'Fonction', exact: true }).fill('Membre');
+  await membre.getByRole('textbox', { name: 'Téléphone', exact: true }).fill('Brouillon conservé');
+  await gradeAdmin.getByRole('button', { name: 'Enregistrer les informations', exact: true }).click();
+  await gradeAdmin.getByText('Informations enregistrées.', { exact: true }).waitFor();
+  await membre.locator('.doc-carte').getByText('SERGENT-CHEF', { exact: true }).waitFor({timeout:25000});
+  assert.equal(await membre.locator('.doc-cert').getByText('SERGENT-CHEF', { exact: true }).count(), 1);
+  assert.equal(await membre.getByRole('textbox', { name: 'Téléphone', exact: true }).inputValue(), 'Brouillon conservé');
   assert.equal((await db.query('SELECT grade FROM public.membres WHERE id=$1', [paulId])).rows[0].grade, 'Sergent-chef');
+  await gradeAdmin.context().close();
   await membre.reload();
   await membre.locator('#ecran-app:not([hidden])').waitFor();
   await nav(membre, 'profil');
-  assert.equal(await membre.getByLabel('Grade à afficher sur ma carte', {exact:true}).inputValue(), 'Sergent-chef');
+  assert.equal(await membre.locator('.grade-attribue').textContent(), 'Sergent-chef');
+  assert.equal(await membre.locator('.doc-carte').getByText('SERGENT-CHEF', { exact: true }).count(), 1);
   await mkdir(resolve(root, 'test-results'), { recursive: true });
   await membre.locator('.doc-carte').first().screenshot({path:resolve(root,'test-results/grade-personnel-carte.png')});
   await nav(membre, 'messages');

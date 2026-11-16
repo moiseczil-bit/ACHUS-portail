@@ -39,6 +39,11 @@ try {
   await run(photos); await run(photos);
   await run('supabase/tests/07_photos_profils.sql'); await run(photos);
   await db.exec("DO $$ BEGIN ASSERT (SELECT count(*)=1 FROM storage.objects WHERE bucket_id='photos-profils'); END $$;");
+  const gradesAdmin = 'supabase/migrations/20261116154208_grade_reserve_bureau.sql';
+  await run(gradesAdmin); await run(gradesAdmin);
+  await run('supabase/tests/08_grade_administration.sql');
+  await run(gradesAdmin);
+  await db.exec("DO $ BEGIN ASSERT (SELECT grade='Caporal attribué' FROM public.membres WHERE id=current_setting('test.enfant1')::uuid); END $;");
   console.log('MIGRATION_OK (Postgres embarqué, RLS et conservation vérifiées)');
 } catch (error) {
   console.error('ÉCHEC SQL :', error.code, error.message, error.where || '');
