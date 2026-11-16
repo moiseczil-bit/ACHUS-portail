@@ -5,6 +5,14 @@ Slogan : « Lajenès se lavni peyi an ».
 
 Ce document est pour la personne qui gère le site, pas pour un développeur.
 
+## Connexion indisponible : projet en pause — 16 novembre 2026
+
+Le message Safari « Load failed » ne signifiait pas que le mot de passe était faux : les routes Auth renvoyaient 503 sans les en-têtes CORS attendus et le tableau de bord confirmait que le projet ACHUS était en pause. La remise en service a été effectuée depuis **Resume project**, sans modifier les comptes ni les mots de passe, sans migration ni abonnement payant.
+
+Le contrôle GitHub existant échouait les 5, 9 et 12 novembre : `SUPABASE_URL` et `SUPABASE_ANON_KEY` étaient absents. Il utilise désormais les deux valeurs publiques déjà intégrées au portail, avec uniquement l'en-tête `apikey` adapté aux clés publishable. Aucun service_role ni secret ajouté. Il appelle `ping()` (heure serveur uniquement) deux fois par semaine, avec délai maximal et tentatives bornées. Pendant la reprise, l’API peut temporairement renvoyer 404 tant que son cache de schéma n’est pas chargé ; le RPC répond à nouveau HTTP 200 après restauration complète. Ce contrôle ne réactive pas une base déjà en pause et ne garantit pas l’absence de futures pauses de l’offre gratuite.
+
+**Vérification effectuée** : statut Healthy et routes Auth `/health` et `/settings` HTTP 200 avec CORS pour le portail officiel. Le contrôle de disponibilité `ping()` répond également HTTP 200 ; le titulaire reste à même de confirmer sa connexion. Si la base est en pause, ouvrir Supabase → projet Achus → Resume project. Ne pas changer le mot de passe pour corriger une panne de service.
+
 ## Mot de passe oublié — 16 novembre 2026
 
 **Fait dans le code** : lien « Mot de passe oublié ? » sur la connexion ; page `reinitialiser.html` pour demander le courriel et choisir un nouveau mot de passe après validation d’un lien Supabase. Confirmation du mot de passe, commande afficher/masquer, délais bornés, message neutre sans révéler l’existence d’un compte, limite locale de renvoi d’une minute et messages français pour les erreurs. Les limites réelles et la validité des liens sont contrôlées par Supabase. Aucun secret administrateur ni migration SQL.
@@ -39,7 +47,7 @@ Le forfait Vercel choisi doit respecter l’objectif de gratuité ; aucune optio
 - L'agenda rappelle la réunion du samedi à 9 h et la Fête du Drapeau le 18 mai.
 - Les contacts sont affichés : WhatsApp +509 39 18 0332, achushaiti@gmail.com.
 - Les données des membres ne sont plus lisibles par n'importe qui sur Internet. Chacun ne voit que sa fiche. Le bureau voit l'ensemble. La clé visible dans le site ne permet plus de se nommer admin.
-- Un petit appel automatique, deux fois par semaine, évite que Supabase mette le projet en pause.
+- Un contrôle automatique, deux fois par semaine, vérifie la disponibilité d’Auth. Il ne réactive pas un projet déjà en pause et ne garantit pas l’absence de pauses.
 - **Messagerie** : réception, messages envoyés, réponse, pagination et badge de non-lus. Seuls les membres au statut **Actif** y accèdent. Même le bureau ne lit que ses propres échanges. Le destinataire peut marquer un message comme lu ; le contenu, l’auteur et la date ne sont pas modifiables. L’annuaire ne donne que le nom et le numéro des membres actifs ayant un compte. Les annonces du bureau sont maintenant lisibles depuis le menu des membres actifs et honoraires.
 - **Présences** : les membres actifs ou honoraires déclarent une séance passée de l’agenda ; elle reste **En attente** jusqu’à la décision d’un autre responsable. Le bureau approuve ou refuse avec un motif. Une même séance ne peut pas être déclarée deux fois. Chaque samedi constitue une séance différente, en heure d’Haïti.
 - **Suivi du bureau** : tableau par réunion avec « Non déclarée », export CSV, taux par membre sur une période de 366 jours maximum. Le taux compte les présences approuvées sur toutes les séances passées de l’agenda depuis l’adhésion, y compris celles sans déclaration. Les archives anciennes et les périodes de suspension historiques ne sont pas déduites de ce calcul. Un événement avec des déclarations ne peut plus être supprimé.
