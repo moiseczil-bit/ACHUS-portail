@@ -5,6 +5,16 @@ Slogan : « Lajenès se lavni peyi an ».
 
 Ce document est pour la personne qui gère le site, pas pour un développeur.
 
+## Préparation Vercel — 16 novembre 2026
+
+Le portail de production reste sur Netlify, avec le domaine `portail.achussantohaiti.com`. La préparation Vercel ne déplace ni le domaine ni les données Supabase. Les deux hébergements utilisent le même code et le même projet Supabase ; une action effectuée avec un vrai compte sur la version de test agit donc sur les vraies données. Pour la recette automatisée, les comptes, réponses et écritures sont fictifs et restent locaux.
+
+**Fait dans le code** : `vercel.json` configure un site statique sans installation de dépendances. `node scripts/preparer-publication.mjs` copie uniquement le HTML, les modules, les images et les polices dans `dist/`. Les migrations SQL, les tests et les réglages du dépôt ne sont pas publiés. L’adresse `/` ouvre `index-portail.html`, comme sur Netlify. Aucun changement des comptes, des mots de passe ou des RLS.
+
+**À terminer avant bascule** : vérifier la version Vercel et son certificat, la connexion/déconnexion, le grade, les cartes, le secours WebP pour iPhone, la messagerie, les présences et les permissions. Vérifier les URL de connexion et de retour par e-mail dans Supabase ; ne pas autoriser toutes les URL de prévisualisation par un joker. Puis faire pointer uniquement le sous-domaine `portail` vers Vercel et conserver Netlify pendant la transition. Le nom de domaine ne doit pas être transféré ni les autres enregistrements DNS modifiés.
+
+Le forfait Vercel choisi doit respecter l’objectif de gratuité ; aucune option payante ni mise à niveau n’est nécessaire pour préparer le site statique. Les quotas et les conditions d’éligibilité de l’offre gratuite restent à respecter.
+
 **Mise en service du 4 novembre 2026** : les migrations `messagerie_presences_registre` et `correction_suppression_dependances` sont appliquées sur ACHUS. Les 6 fiches et les 5 comptes existants sont conservés. La version du commit `f430855d3aa8a31892d01e12bcf442d206432262` est publiée sur le site Netlify existant, déploiement `6aeb3d4191f8a708de90d088`. Les fichiers HTML/JS/CSS servis sur le domaine ont été comparés au dépôt. Le menu **Messagerie** apparaît après connexion pour les comptes au statut **Actif**.
 
 ## Ce qui a été fait
