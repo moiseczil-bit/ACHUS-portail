@@ -5,6 +5,14 @@ Slogan : « Lajenès se lavni peyi an ».
 
 Ce document est pour la personne qui gère le site, pas pour un développeur.
 
+## Connexion indisponible : projet en pause — 16 novembre 2026
+
+Le message Safari « Load failed » ne signifiait pas que le mot de passe était faux : les routes Auth renvoyaient 503 sans les en-têtes CORS attendus et le tableau de bord confirmait que le projet ACHUS était en pause. La remise en service est lancée depuis **Resume project**, sans modifier les comptes ni les mots de passe, sans migration ni abonnement payant.
+
+Le contrôle GitHub existant échouait les 5, 9 et 12 novembre : `SUPABASE_URL` et `SUPABASE_ANON_KEY` étaient absents. Il utilise désormais les deux valeurs publiques déjà intégrées au portail, avec uniquement l'en-tête `apikey` adapté aux clés publishable. Aucun service_role ni secret ajouté. Il appelle `ping()` (heure serveur uniquement) deux fois par semaine, avec délai maximal et tentatives bornées. Un échec signale la disponibilité du projet ; cet appel ne peut pas réactiver une base déjà en pause et ne garantit pas l'absence de futures pauses de l'offre gratuite.
+
+**Vérification** : attendre le statut Healthy, vérifier Auth `/health` et `ping()`, puis réessayer la connexion. Si la base est en pause, ouvrir Supabase → projet Achus → Resume project. Ne pas changer le mot de passe pour corriger une panne de service.
+
 ## Mot de passe oublié — 16 novembre 2026
 
 **Fait dans le code** : lien « Mot de passe oublié ? » sur la connexion ; page `reinitialiser.html` pour demander le courriel et choisir un nouveau mot de passe après validation d’un lien Supabase. Confirmation du mot de passe, commande afficher/masquer, délais bornés, message neutre sans révéler l’existence d’un compte, limite locale de renvoi d’une minute et messages français pour les erreurs. Les limites réelles et la validité des liens sont contrôlées par Supabase. Aucun secret administrateur ni migration SQL.
