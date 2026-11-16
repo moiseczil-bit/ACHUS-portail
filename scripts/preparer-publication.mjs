@@ -16,7 +16,7 @@ async function fichiers(dossier) {
   }
   return liste;
 }
-const liste = ['index-portail.html'];
+const liste = ['index-portail.html', 'reinitialiser.html'];
 for (const dossier of ['js', 'css', 'assets']) liste.push(...await fichiers(dossier));
 await rm(sortie, { recursive: true, force: true });
 for (const chemin of liste) {

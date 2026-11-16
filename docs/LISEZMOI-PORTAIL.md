@@ -5,6 +5,16 @@ Slogan : « Lajenès se lavni peyi an ».
 
 Ce document est pour la personne qui gère le site, pas pour un développeur.
 
+## Mot de passe oublié — 16 novembre 2026
+
+**Fait dans le code** : lien « Mot de passe oublié ? » sur la connexion ; page `reinitialiser.html` pour demander le courriel et choisir un nouveau mot de passe après validation d’un lien Supabase. Confirmation du mot de passe, commande afficher/masquer, délais bornés, message neutre sans révéler l’existence d’un compte, limite locale de renvoi d’une minute et messages français pour les erreurs. Les limites réelles et la validité des liens sont contrôlées par Supabase. Aucun secret administrateur ni migration SQL.
+
+Le retour demandé est `https://portail.achussantohaiti.com/`. L’accueil transfère uniquement le fragment de récupération à la page dédiée, avant de créer le client normal. La récupération utilise une session en mémoire distincte de celle du portail ; les jetons sont retirés de l’adresse et aucun mot de passe n’est écrit dans un journal ou un stockage par le code du portail. Garder la page ouverte jusqu’à l’enregistrement. Un lien expiré ou déjà consommé permet de demander un autre courriel. Aucun vrai mot de passe n’est modifié pendant les tests.
+
+**Tests** : `npm run test:recuperation` utilise le véritable SDK avec une API fictive : demande de courriel, limite 429, lien expiré, retour depuis l’accueil, mots de passe différents refusés, affichage/masquage et enregistrement fictif réussi. `npm run test:interface` vérifie les autres fonctions.
+
+**À vérifier lors de la publication** : publier aussi `reinitialiser.html` et `js/reinitialiser.js` sur Netlify et Vercel. Le domaine officiel reste sur Netlify pendant la préparation Vercel. Dans Supabase → Authentication → URL Configuration, le Site URL ou une URL autorisée doit correspondre à l’accueil officiel ; dans Emails, vérifier le modèle Reset Password et la configuration d’envoi. La réception d’un véritable courriel et le changement du mot de passe sont à faire par le titulaire du compte. Ne jamais partager le lien reçu ni le nouveau mot de passe dans une conversation.
+
 ## Préparation Vercel — 16 novembre 2026
 
 Le portail de production reste sur Netlify, avec le domaine `portail.achussantohaiti.com`. La préparation Vercel ne déplace ni le domaine ni les données Supabase. Les deux hébergements utilisent le même code et le même projet Supabase ; une action effectuée avec un vrai compte sur la version de test agit donc sur les vraies données. Pour la recette automatisée, les comptes, réponses et écritures sont fictifs et restent locaux.

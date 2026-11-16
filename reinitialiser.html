@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<meta name="theme-color" content="#0F2350">
+<title>Réinitialiser mon mot de passe — ACHUS</title>
+<link rel="stylesheet" href="css/portail.css">
+<link rel="icon" href="assets/ecusson.png">
+</head>
+<body>
+<main class="ecran-auth">
+  <div class="auth-col">
+    <div class="marque"><img src="assets/ecusson.png" alt="Écusson ACHUS"><div><h1>ACHUS</h1><p>Portail des membres</p></div></div>
+    <section class="panneau">
+      <h2>Réinitialiser mon mot de passe</h2>
+      <div id="recuperation-msg" class="msg info" role="status" aria-live="polite" hidden></div>
+      <form id="demander-lien">
+        <p>Indiquez l’adresse e-mail de votre compte. Vous recevrez un lien pour choisir un nouveau mot de passe.</p>
+        <label class="champ"><span>Adresse e-mail</span><input id="recuperation-email" type="email" autocomplete="username" required></label>
+        <button class="btn btn-navy" type="submit">Envoyer le lien de réinitialisation</button>
+      </form>
+      <form id="nouveau-mot-de-passe" hidden>
+        <p>Choisissez un mot de passe d’au moins 8 caractères. Gardez cette page ouverte jusqu’à l’enregistrement.</p>
+        <label class="champ"><span>Nouveau mot de passe</span><input id="nouveau-password" type="password" autocomplete="new-password" minlength="8" required></label>
+        <label class="champ"><span>Confirmer le nouveau mot de passe</span><input id="confirmer-password" type="password" autocomplete="new-password" minlength="8" required></label>
+        <button id="voir-nouveau-password" class="btn btn-ghost" type="button" aria-pressed="false">Afficher les mots de passe</button>
+        <button class="btn btn-navy" type="submit" disabled>Enregistrer mon nouveau mot de passe</button>
+      </form>
+      <p><a href="index-portail.html">Retour à la connexion</a></p>
+    </section>
+  </div>
+</main>
+<noscript>Activez JavaScript pour réinitialiser votre mot de passe.</noscript>
+<script type="module" src="js/reinitialiser.js"></script>
+</body>
+</html>
