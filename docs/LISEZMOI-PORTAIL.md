@@ -5,6 +5,26 @@ Slogan : « Lajenès se lavni peyi an ».
 
 Ce document est pour la personne qui gère le site, pas pour un développeur.
 
+## Mot de passe oublié — 16 novembre 2026
+
+**Fait dans le code** : lien « Mot de passe oublié ? » sur la connexion ; page `reinitialiser.html` pour demander le courriel et choisir un nouveau mot de passe après validation d’un lien Supabase. Confirmation du mot de passe, commande afficher/masquer, délais bornés, message neutre sans révéler l’existence d’un compte, limite locale de renvoi d’une minute et messages français pour les erreurs. Les limites réelles et la validité des liens sont contrôlées par Supabase. Aucun secret administrateur ni migration SQL.
+
+Le retour demandé est `https://portail.achussantohaiti.com/`. L’accueil transfère uniquement le fragment de récupération à la page dédiée, avant de créer le client normal. La récupération utilise une session en mémoire distincte de celle du portail ; les jetons sont retirés de l’adresse et aucun mot de passe n’est écrit dans un journal ou un stockage par le code du portail. Garder la page ouverte jusqu’à l’enregistrement. Un lien expiré ou déjà consommé permet de demander un autre courriel. Aucun vrai mot de passe n’est modifié pendant les tests.
+
+**Tests** : `npm run test:recuperation` utilise le véritable SDK avec une API fictive : demande de courriel, limite 429, lien expiré, retour depuis l’accueil, mots de passe différents refusés, affichage/masquage et enregistrement fictif réussi. `npm run test:interface` vérifie les autres fonctions.
+
+**À vérifier lors de la publication** : publier aussi `reinitialiser.html` et `js/reinitialiser.js` sur Netlify et Vercel. Le domaine officiel reste sur Netlify pendant la préparation Vercel. Dans Supabase → Authentication → URL Configuration, le Site URL ou une URL autorisée doit correspondre à l’accueil officiel ; dans Emails, vérifier le modèle Reset Password et la configuration d’envoi. La réception d’un véritable courriel et le changement du mot de passe sont à faire par le titulaire du compte. Ne jamais partager le lien reçu ni le nouveau mot de passe dans une conversation.
+
+## Préparation Vercel — 16 novembre 2026
+
+Le portail de production reste sur Netlify, avec le domaine `portail.achussantohaiti.com`. La préparation Vercel ne déplace ni le domaine ni les données Supabase. Les deux hébergements utilisent le même code et le même projet Supabase ; une action effectuée avec un vrai compte sur la version de test agit donc sur les vraies données. Pour la recette automatisée, les comptes, réponses et écritures sont fictifs et restent locaux.
+
+**Fait dans le code** : `vercel.json` configure un site statique sans installation de dépendances. `node scripts/preparer-publication.mjs` copie uniquement le HTML, les modules, les images et les polices dans `dist/`. Les migrations SQL, les tests et les réglages du dépôt ne sont pas publiés. L’adresse `/` ouvre `index-portail.html`, comme sur Netlify. Aucun changement des comptes, des mots de passe ou des RLS.
+
+**À terminer avant bascule** : vérifier la version Vercel et son certificat, la connexion/déconnexion, le grade, les cartes, le secours WebP pour iPhone, la messagerie, les présences et les permissions. Vérifier les URL de connexion et de retour par e-mail dans Supabase ; ne pas autoriser toutes les URL de prévisualisation par un joker. Puis faire pointer uniquement le sous-domaine `portail` vers Vercel et conserver Netlify pendant la transition. Le nom de domaine ne doit pas être transféré ni les autres enregistrements DNS modifiés.
+
+Le forfait Vercel choisi doit respecter l’objectif de gratuité ; aucune option payante ni mise à niveau n’est nécessaire pour préparer le site statique. Les quotas et les conditions d’éligibilité de l’offre gratuite restent à respecter.
+
 **Mise en service du 4 novembre 2026** : les migrations `messagerie_presences_registre` et `correction_suppression_dependances` sont appliquées sur ACHUS. Les 6 fiches et les 5 comptes existants sont conservés. La version du commit `f430855d3aa8a31892d01e12bcf442d206432262` est publiée sur le site Netlify existant, déploiement `6aeb3d4191f8a708de90d088`. Les fichiers HTML/JS/CSS servis sur le domaine ont été comparés au dépôt. Le menu **Messagerie** apparaît après connexion pour les comptes au statut **Actif**.
 
 ## Ce qui a été fait

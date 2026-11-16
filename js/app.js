@@ -952,6 +952,12 @@ async function apercu() {
 }
 
 async function demarrer() {
+  // Les courriels peuvent revenir à l'accueil (Site URL Supabase).
+  const retour = new URLSearchParams(location.hash.slice(1));
+  if (retour.get('type') === 'recovery' || retour.get('error_code') === 'otp_expired') {
+    location.replace(new URL('reinitialiser.html' + location.hash, location.href));
+    return;
+  }
   if (location.hash.startsWith("#apercu")) {
     await apercu();
     return;

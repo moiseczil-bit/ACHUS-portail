@@ -4,7 +4,8 @@
   "type": "module",
   "scripts": {
     "test": "bash scripts/test-migration.sh",
-    "test:interface": "node scripts/test-interface.mjs"
+    "test:interface": "node scripts/test-interface.mjs",
+    "test:recuperation": "node scripts/test-recuperation.mjs"
   },
   "devDependencies": {
     "@electric-sql/pglite": "0.5.15",

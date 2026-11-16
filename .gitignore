@@ -3,3 +3,5 @@
 node_modules/
 test-results/
 supabase/.temp/
+dist/
+.vercel/
