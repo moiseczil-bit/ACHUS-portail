@@ -31,6 +31,10 @@ let profil = null;
 let page = "accueil";
 let affichageGeneration = 0;
 let messagesTimer = null;
+let profilTimer = null;
+let canalProfil = null;
+let documentsProfil = null;
+let synchronisationProfil = false;
 const collaboration = creerCollaboration({
   client: () => supabase, profil: () => profil, estBureau, libelleStatut, libelleRole,
   toast, sauverBlob, ouvrirDocuments,
@@ -373,43 +377,33 @@ async function pageProfil() {
     el("p", null, "Membre depuis le : " + (profil.date_adhesion ? dateFR(profil.date_adhesion) : "—")),
     el("p", null, "Carte valable jusqu'au : " + (profil.date_validite ? dateFR(profil.date_validite, "slash") : "—"))
   );
-  const riche = await avecPhoto(profil);
-  const docs = el("div");
-  docs.style.marginTop = "16px";
-  docs.append(el("h3", null, "Carte de membre"));
-  docs.append(outilsCarte(riche));
-  docs.append(carteRecto(riche), el("div", null), carteVerso(riche));
-  docs.append(el("h3", null, "Certificat"));
-  if (certificatAutorise(profil)) {
-    const pdf = el("button", "btn btn-navy btn-sm", "Télécharger le certificat (PDF)");
-    pdf.onclick = () => telechargerCertificatPdf(riche).catch((e) => toast(texteErreur(e), "error"));
-    docs.append(pdf, certificat(riche));
-  } else {
-    docs.append(el("p", "meta", "Le certificat est disponible pour les membres actifs ou honoraires qui ont un numéro."));
+  const gradePanel = el("section", "panneau");
+  gradePanel.append(el("h3", null, "Mon grade"));
+  const gradeAttribue = el("p", "grade-attribue", profil.grade || "—");
+  gradePanel.append(gradeAttribue, el("p", "meta", "Votre grade est attribué par l’administration. Il apparaît automatiquement sur votre carte et votre certificat."));
+  root.append(gradePanel);
+  const docs = el("div"); docs.style.marginTop = "16px";
+  async function actualiserDocuments() {
+    const fiche = profil;
+    const riche = await avecPhoto(fiche);
+    if (profil?.id !== fiche.id) return;
+    gradeAttribue.textContent = fiche.grade || "—";
+    lecture.children[2].textContent = "Grade : " + (fiche.grade || "—") + " · Fonction : " + (fiche.fonction || "—");
+    docs.replaceChildren();
+    docs.append(el("h3", null, "Carte de membre"));
+    docs.append(outilsCarte(riche));
+    docs.append(carteRecto(riche), el("div", null), carteVerso(riche));
+    docs.append(el("h3", null, "Certificat"));
+    if (certificatAutorise(profil)) {
+      const pdf = el("button", "btn btn-navy btn-sm", "Télécharger le certificat (PDF)");
+      pdf.onclick = () => telechargerCertificatPdf(riche).catch((e) => toast(texteErreur(e), "error"));
+      docs.append(pdf, certificat(riche));
+    } else {
+      docs.append(el("p", "meta", "Le certificat est disponible pour les membres actifs ou honoraires qui ont un numéro."));
+    }
   }
-  if (["actif", "honoraire"].includes(profil.statut) && profil.type_compte !== "parent") {
-    const gradeForm = el("form", "panneau");
-    gradeForm.style.marginBottom = "12px";
-    gradeForm.append(el("h3", null, "Mon grade"));
-    const grade = input({ value: profil.grade || "" });
-    grade.required = true; grade.maxLength = 80; grade.placeholder = "Ex. : Sergent";
-    gradeForm.append(champ("Grade à afficher sur ma carte", grade),
-      el("p", "meta", "Indiquez votre grade ACHUS. Après enregistrement, votre carte et votre certificat sont actualisés. Ce choix ne change pas vos droits dans le portail."));
-    const enregistrerGrade = el("button", "btn btn-navy", "Enregistrer mon grade");
-    enregistrerGrade.type = "submit"; gradeForm.append(enregistrerGrade);
-    gradeForm.onsubmit = async e => {
-      e.preventDefault(); enregistrerGrade.disabled = true;
-      try {
-        const { error } = await supabase.rpc("modifier_mon_grade", { p_grade: grade.value.trim() });
-        if (error) throw error;
-        await chargerProfil();
-        if (gradeForm.isConnected && page === "profil") await afficher("profil");
-        toast("Grade enregistré. Votre carte est actualisée.");
-      } catch (e) { toast(texteErreur(e), "error"); }
-      finally { enregistrerGrade.disabled = false; }
-    };
-    root.append(gradeForm);
-  }
+  await actualiserDocuments();
+  documentsProfil = async () => { if (root.isConnected && page === "profil") await actualiserDocuments(); };
   if (["actif", "honoraire"].includes(profil.statut)) root.prepend(photosProfil.formulaire());
   root.append(form, photoForm, lecture, docs);
   return root;
@@ -688,6 +682,7 @@ async function afficher(id) {
   contenu.setAttribute("aria-busy", "true");
   contenu.replaceChildren(el("p", "meta", "Chargement…"));
   try {
+    if (["profil", "accueil"].includes(id)) { await chargerProfil(); remplirQui(); }
     let node;
     if (id === "accueil") node = await pageAccueil();
     else if (id === "profil") node = await pageProfil();
@@ -773,9 +768,27 @@ function construireNav() {
 }
 
 async function chargerProfil() {
-  const { data, error } = await supabase.from("membres").select("*").eq("user_id", session.user.id).maybeSingle();
+  const utilisateur = session?.user.id;
+  if (!utilisateur) return;
+  const { data, error } = await supabase.from("membres").select("*").eq("user_id", utilisateur).maybeSingle();
   if (error) throw error;
-  profil = data;
+  if (session?.user.id === utilisateur) profil = data;
+}
+
+async function synchroniserGrade() {
+  if (!session || synchronisationProfil || document.visibilityState !== "visible") return;
+  synchronisationProfil = true;
+  const ancien = profil;
+  try {
+    await chargerProfil();
+    if (!session || !profil || profil.id !== ancien?.id) return;
+    remplirQui();
+    if (profil.statut !== ancien.statut || profil.role !== ancien.role) {
+      construireNav(); await afficher(page); return;
+    }
+    if (["grade", "fonction", "date_validite", "photo_url"].some(c => profil[c] !== ancien[c])) await documentsProfil?.();
+  } catch { /* Une coupure réseau ne doit pas effacer un formulaire en cours. */ }
+  finally { synchronisationProfil = false; }
 }
 
 async function entrer() {
@@ -785,6 +798,13 @@ async function entrer() {
   remplirQui();
   construireNav();
   await afficher("accueil");
+  clearInterval(profilTimer);
+  if (canalProfil) await supabase.removeChannel(canalProfil);
+  // Filtre de la propre fiche ; les politiques SELECT restent appliquées par Realtime.
+  if (supabase.channel) canalProfil = supabase.channel('profil-' + session.user.id)
+    .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'membres', filter: 'user_id=eq.' + session.user.id }, () => { void synchroniserGrade(); })
+    .subscribe();
+  profilTimer = setInterval(() => { if (page === "profil") void synchroniserGrade(); }, 15000);
   clearInterval(messagesTimer);
   messagesTimer = setInterval(() => {
     if (session && document.visibilityState === "visible") { collaboration.badgeMessages(); communaute.badgeAppels(); }
@@ -797,7 +817,9 @@ async function entrer() {
 }
 
 async function sortir() {
-  clearInterval(messagesTimer);
+  clearInterval(messagesTimer); clearInterval(profilTimer);
+  if (canalProfil) { await supabase.removeChannel(canalProfil); canalProfil = null; }
+  documentsProfil = null;
   ++affichageGeneration;
   document.querySelectorAll("dialog.dialog-portail").forEach(d => d.close());
   $("contenu").replaceChildren();
@@ -986,6 +1008,9 @@ async function demarrer() {
     catch (err) { msg("login-msg", traduireAuth(texteErreur(err)), "err"); }
   }
 }
+
+window.addEventListener("focus", () => { if (page === "profil") void synchroniserGrade(); });
+document.addEventListener("visibilitychange", () => { if (page === "profil") void synchroniserGrade(); });
 
 demarrer().catch((e) => {
   const t = $("toast");

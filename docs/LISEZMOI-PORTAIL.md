@@ -5,6 +5,24 @@ Slogan : « Lajenès se lavni peyi an ».
 
 Ce document est pour la personne qui gère le site, pas pour un développeur.
 
+## Grade attribué par l’administration — 16 novembre 2026
+
+**Fait dans le code** : seul le président ou le bureau attribue le grade, dans **Registre → Gérer → Grade → Enregistrer les informations**. Le profil du soldat affiche le grade en lecture seule. La migration `20261116154208_grade_reserve_bureau.sql` désactive l’ancienne fonction `modifier_mon_grade`, y compris pour les anciennes versions du portail. Les grades déjà enregistrés sont conservés ; les droits RLS existants ne sont pas élargis.
+
+La carte et le certificat du profil ouvert suivent les changements de la propre fiche via Realtime. Ils sont aussi relus à l’ouverture du profil, au retour au premier plan, et toutes les 15 secondes si le profil est visible. L’actualisation des documents conserve les autres champs en cours de saisie. Une carte déjà imprimée ou téléchargée doit être téléchargée à nouveau.
+
+**Validation** : tests SQL des refus membre/visiteur, attribution par le bureau, conservation du numéro et du rôle, journal et réexécution idempotente. Le test d’interface ouvre deux sessions : le président attribue un grade et la carte du membre s’actualise en conservant son brouillon de téléphone. La dernière relance complète des tests d’interface doit être confirmée après rétablissement de l’environnement.
+
+**Reste à faire** : appliquer uniquement cette nouvelle migration au projet ACHUS, vérifier Realtime et les droits, puis publier le code sur le site Netlify existant. Ne pas rejouer l’ancienne migration `grade_personnel`, qui rétablirait l’ancienne permission.
+
+**Checklist de mise en service** :
+
+- [ ] Vérifier les tests SQL et d’interface sur le commit livré.
+- [ ] Vérifier que le membre ne peut pas changer son grade, y compris via l’ancienne fonction.
+- [ ] Vérifier l’attribution par le bureau dans le registre avec deux comptes de test.
+- [ ] Vérifier le grade sur la carte et le certificat, puis sur un nouveau téléchargement.
+- [ ] Confirmer le déploiement sur `portail.achussantohaiti.com`. Aucun grade réel ne doit être modifié pour un essai.
+
 ## Mot de passe oublié — 16 novembre 2026
 
 **Fait dans le code** : lien « Mot de passe oublié ? » sur la connexion ; page `reinitialiser.html` pour demander le courriel et choisir un nouveau mot de passe après validation d’un lien Supabase. Confirmation du mot de passe, commande afficher/masquer, délais bornés, message neutre sans révéler l’existence d’un compte, limite locale de renvoi d’une minute et messages français pour les erreurs. Les limites réelles et la validité des liens sont contrôlées par Supabase. Aucun secret administrateur ni migration SQL.
@@ -217,7 +235,9 @@ Les commandes `bash scripts/test-migration.sh` et `npm run test:interface` couvr
 
 Sources techniques à revérifier avant une grande réunion : [FAQ Jitsi](https://jitsi.org/user-faq/) et [Démarrer une réunion](https://jitsi.github.io/handbook/docs/user-guide/user-guide-start-a-jitsi-meeting/).
 
-## Correction publiée : mot de passe visible et grade personnel
+## Historique du 4 novembre : mot de passe visible et grade personnel
+
+**La modification du grade par le membre décrite ci-dessous est remplacée par la correction du 16 novembre : attribution réservée à l’administration.**
 
 **Mise en service du 4 novembre 2026 à 14 h 02 (Toronto)** : PR nº 8 fusionnée, migrations `grade_personnel` et `photos_profil_communaute` appliquées et enregistrées. Les **10 fiches et 9 comptes** sont conservés. Le stockage des photos est privé, cinq politiques restrictives sont présentes, et les fonctions ne sont pas exécutables anonymement. Version publiée : `3ef5781556553a668f77dbfe68594ee90c2d92bf`, déploiement Netlify `6aeb812c514951fb17fa0005`. Le HTML, le CSS et les modules JS servis sur le domaine ont été comparés au dépôt. L’écran public affiche maintenant la commande de visibilité du mot de passe. Les essais de photos et de grade ont été effectués sur une base jetable ; la recette avec les vrais comptes reste à faire.
 
