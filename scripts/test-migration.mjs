@@ -43,7 +43,7 @@ try {
   await run(gradesAdmin); await run(gradesAdmin);
   await run('supabase/tests/08_grade_administration.sql');
   await run(gradesAdmin);
-  await db.exec("DO $ BEGIN ASSERT (SELECT grade='Caporal attribué' FROM public.membres WHERE id=current_setting('test.enfant1')::uuid); END $;");
+  await db.exec("DO $$ BEGIN ASSERT (SELECT grade='Caporal attribué' FROM public.membres WHERE id=current_setting('test.enfant1')::uuid); END $$;");
   console.log('MIGRATION_OK (Postgres embarqué, RLS et conservation vérifiées)');
 } catch (error) {
   console.error('ÉCHEC SQL :', error.code, error.message, error.where || '');
